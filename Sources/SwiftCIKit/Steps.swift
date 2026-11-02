@@ -34,6 +34,8 @@ public enum Step: Sendable, Equatable {
     case tool(name: String, title: String, arguments: [String])
     /// Packages a release-built executable into `.build/swift-ci/dist`, checking its `--version` against the tag.
     case archive(executable: String, os: OS)
+    /// Writes a file the next steps read, relative to the root.
+    case file(path: String, contents: String)
 
     public var title: String {
         switch self {
@@ -42,6 +44,7 @@ public enum Step: Sendable, Equatable {
             case .install(let tool): "Install \(tool.name) \(tool.version)"
             case .tool(_, let title, _): title
             case .archive(let executable, _): "Archive \(executable)"
+            case .file(let path, _): "Write \(path)"
         }
     }
 }
@@ -55,7 +58,18 @@ public enum Paths {
     public static let documentation = root + "/docs"
     public static let distribution = root + "/dist"
     public static let litmus = root + "/litmus"
+    /// LeakSanitizer suppressions of the Linux AddressSanitizer runs.
+    public static let leakSuppressions = root + "/lsan-suppressions.txt"
 }
+
+/// What LeakSanitizer must not report on Linux: the XCTest runner `swift test` starts after swift-testing keeps its
+/// suites until exit (seen on swift:6.4.1-noble, 432 bytes in 7 objects, all from `XCTMainMisc`). A leak with a frame
+/// in the project's own code is still reported.
+public let leakSuppressions = """
+    # swift-ci: the XCTest runner's objects live until exit.
+    leak:libXCTest.so
+
+    """
 
 /// The steps of each check, for one project.
 public struct StepPlanner: Sendable {
@@ -90,7 +104,12 @@ public struct StepPlanner: Sendable {
             case CheckID.quality: return try quality(swiftFiles: swiftFiles, fileExists: fileExists, local: local)
             case CheckID.linuxDebug: return package(.debug)
             case CheckID.linuxRelease: return package(.release)
-            case CheckID.linuxAddress: return package(.sanitizer("address"))
+            case CheckID.linuxAddress:
+                return [.file(path: Paths.leakSuppressions, contents: leakSuppressions)]
+                    + package(
+                        .sanitizer("address"),
+                        extraEnvironment: ["LSAN_OPTIONS": "suppressions=\(Paths.leakSuppressions)"]
+                    )
             case CheckID.linuxThread: return package(.sanitizer("thread"))
             case CheckID.consumer: return package(.debug, environment: [:])
             case CheckID.macOSDebug: return project.isXcode ? try xcode(.debug) : package(.debug, coverage: true)
@@ -116,10 +135,14 @@ public struct StepPlanner: Sendable {
 
     /// Builds the tests once, then runs them without building: in release, `-enable-testing` makes the build the one
     /// `swift test` needs (without it, `swift test -c release` rebuilds everything after `swift build -c release`).
-    func package(_ mode: Mode, coverage: Bool = false, environment: [String: String]? = nil, path: String? = nil)
-        -> [Step]
-    {
-        let environment = environment ?? configuration.swift.environment
+    func package(
+        _ mode: Mode,
+        coverage: Bool = false,
+        environment: [String: String]? = nil,
+        extraEnvironment: [String: String] = [:],
+        path: String? = nil
+    ) -> [Step] {
+        let environment = (environment ?? configuration.swift.environment).merging(extraEnvironment) { $1 }
         var build = ["swift", "build", "--build-tests"]
         var test = ["swift", "test", "--skip-build"]
         if let path {

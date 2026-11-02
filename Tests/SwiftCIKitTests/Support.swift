@@ -46,6 +46,7 @@ func commandLines(_ steps: [Step]) -> [String] {
             case .install(let tool): "install \(tool.name)"
             case .tool(let name, _, let arguments): ([name] + arguments).joined(separator: " ")
             case .archive(let executable, let os): "archive \(executable) \(os.rawValue)"
+            case .file(let path, _): "write \(path)"
         }
     }
 }

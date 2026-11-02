@@ -65,6 +65,14 @@ public struct Executor {
                 if dryRun { return print(([name] + arguments).map(ShellCommand.quote).joined(separator: " ")) }
                 guard let binary = installed[name] else { throw SwiftCIError("\(name) runs before it is installed") }
                 try Shell.run([binary.path] + arguments, directory: root)
+            case .file(let path, let contents):
+                if dryRun { return print("write \(path)") }
+                let url = root.appendingPathComponent(path)
+                try FileManager.default.createDirectory(
+                    at: url.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try contents.write(to: url, atomically: true, encoding: .utf8)
             case .archive(let executable, let os):
                 if dryRun { return print("archive \(executable) into \(Paths.distribution)") }
                 try archive(executable, os: os)

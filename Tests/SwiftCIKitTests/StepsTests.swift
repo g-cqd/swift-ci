@@ -30,6 +30,15 @@ struct StepsTests {
                 "swift build --build-tests -c release -Xswiftc -enable-testing", "swift test --skip-build -c release"
             ]
         )
+        // On Linux, LeakSanitizer is told about the XCTest runner's objects, and nothing else.
+        #expect(
+            try steps(CheckID.linuxAddress) == [
+                "write .build/swift-ci/lsan-suppressions.txt",
+                "LSAN_OPTIONS=suppressions=.build/swift-ci/lsan-suppressions.txt swift build --build-tests --sanitize=address",
+                "LSAN_OPTIONS=suppressions=.build/swift-ci/lsan-suppressions.txt swift test --skip-build --sanitize=address"
+            ]
+        )
+        #expect(leakSuppressions.contains("leak:libXCTest.so\n"))
         #expect(
             try steps(CheckID.macOSThread) == [
                 "swift build --build-tests --sanitize=thread", "swift test --skip-build --sanitize=thread"

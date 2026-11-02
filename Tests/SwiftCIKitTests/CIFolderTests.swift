@@ -109,3 +109,60 @@ struct ScaffoldTests {
         #expect(try Scaffold.schemes(fromXcodebuildList: Data("{}".utf8)) == [])
     }
 }
+
+struct AdoptionTests {
+    @Test func `swift-format checks only what quality.include names, minus quality.exclude`() throws {
+        let json = #"{"quality": {"include": ["Package.swift", "Sources/**", "Tests/*/*.swift"], "analyzers": []}}"#
+        let planner = StepPlanner(configuration: try configuration(json), project: package, lock: .builtIn)
+        let files = [
+            "Package.swift", "Sources/A/a.swift", "Tests/AT/t.swift", "Tests/AT/Fixtures/f.swift", "Benchmarks/b.swift"
+        ]
+        #expect(
+            commandLines(try planner.steps(for: CheckID.quality, swiftFiles: files)) == [
+                "swift format lint --strict --parallel --configuration .swift-format Package.swift Sources/A/a.swift Tests/AT/t.swift"
+            ]
+        )
+    }
+
+    @Test func `baseline writes each analyzer's findings into .ci/baselines`() throws {
+        let planner = StepPlanner(
+            configuration: try configuration(#"{"quality": {"analyzers": ["dolly", "modeler"]}}"#),
+            project: package,
+            lock: .builtIn
+        )
+        #expect(
+            commandLines(try planner.baselines()) == [
+                "install dolly",
+                "dolly analyze --strict --no-cache --relative-to . --write-baseline .ci/baselines/dolly.json Sources Tests",
+                "install modeler",
+                "modeler check --strict --no-cache --relative-to . --write-baseline .ci/baselines/modeler.json Sources Tests"
+            ]
+        )
+    }
+
+    @Test func `a command can leave release archives, and the archive checks always do`() throws {
+        let json =
+            #"{"release": {"executables": ["t"]}, "commands": [{"id": "full", "run": "x", "os": "macOS", "cadence": ["tag"], "archives": true}, {"id": "plain", "run": "y", "cadence": ["tag"]}]}"#
+        let plan = try Planner(configuration: try configuration(json), project: package)
+            .plan(event: Event(trigger: .tag, ref: "refs/tags/v1"), changedFiles: nil)
+        let archives = (plan.linux + plan.macOS).filter(\.archives).map(\.id).sorted()
+        #expect(archives == [CheckID.archiveLinux, CheckID.archiveMacOS, "full"])
+    }
+
+    @Test func `keep going runs every step and reports the failures together`() throws {
+        let sandbox = try Sandbox()
+        var executor = Executor(root: sandbox.root)
+        let steps: [Step] = [
+            .run(ShellCommand("first", ["false"])), .file(path: "reached", contents: ""),
+            .run(ShellCommand("third", ["false"]))
+        ]
+        #expect {
+            try executor.run(steps, keepGoing: true)
+        } throws: { "\($0)" == "2 step(s) failed: first, third" }
+        #expect(FileManager.default.fileExists(atPath: sandbox.root.appendingPathComponent("reached").path))
+        let stopped = try Sandbox()
+        var strict = Executor(root: stopped.root)
+        #expect(throws: SwiftCIError.self) { try strict.run(steps) }
+        #expect(!FileManager.default.fileExists(atPath: stopped.root.appendingPathComponent("reached").path))
+    }
+}

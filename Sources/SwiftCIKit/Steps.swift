@@ -302,13 +302,27 @@ public struct StepPlanner: Sendable {
 
     // MARK: Quality
 
+    /// Each analyzer writes its current findings to `.ci/baselines/<tool>.json`: they are accepted, and only a finding
+    /// not in the baseline fails quality afterwards. For adopting a gate on a codebase with a backlog.
+    public func baselines() throws -> [Step] {
+        try configuration.quality.analyzers.flatMap { name -> [Step] in
+            let tool = try lock.tool(named: name)
+            guard let base = tool.arguments else { throw SwiftCIError("\(name) is a formatter, not an analyzer") }
+            let arguments = base + ["--write-baseline", CIFolder.baseline(of: name)] + project.corpus
+            return [.install(tool), .tool(name: name, title: "\(name) baseline", arguments: arguments)]
+        }
+    }
+
     func quality(swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
         var steps: [Step] = []
         for formatter in project.formatters {
             switch formatter {
                 case .swiftFormat:
+                    let include = configuration.quality.include.map(Glob.init)
                     let exclude = configuration.quality.exclude.map(Glob.init)
-                    let files = swiftFiles.filter { file in !exclude.contains { $0.matches(file) } }
+                    let files = swiftFiles.filter { file in
+                        include.contains { $0.matches(file) } && !exclude.contains { $0.matches(file) }
+                    }
                     guard !files.isEmpty else { continue }
                     let arguments =
                         ["swift", "format", "lint", "--strict", "--parallel", "--configuration", ".swift-format"]

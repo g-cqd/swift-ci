@@ -133,7 +133,7 @@ jobs:
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
       - name: Upload the archives
-        if: ${{ startsWith(matrix.id, 'archive-') }}
+        if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: swift-ci-${{ matrix.id }}
@@ -200,7 +200,7 @@ jobs:
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
       - name: Upload the archives
-        if: ${{ startsWith(matrix.id, 'archive-') }}
+        if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: swift-ci-${{ matrix.id }}

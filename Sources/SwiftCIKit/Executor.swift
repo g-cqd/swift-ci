@@ -38,7 +38,10 @@ public struct Executor {
 
     var inActions: Bool { ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" }
 
-    public mutating func run(_ steps: [Step]) throws {
+    /// Runs `steps`; the first failure stops them, unless `keepGoing`: then every step runs and the failures are
+    /// reported together at the end (quality, so one run shows every tool's findings).
+    public mutating func run(_ steps: [Step], keepGoing: Bool = false) throws {
+        var failures: [String] = []
         for step in steps {
             if inActions { print("::group::\(step.title)") } else { print("==> \(step.title)") }
             fflush(nil)  // before the child writes, so the title stays above its output
@@ -46,7 +49,16 @@ public struct Executor {
                 if inActions { print("::endgroup::") }
                 fflush(nil)
             }
-            try execute(step)
+            do {
+                try execute(step)
+            } catch {
+                guard keepGoing else { throw error }
+                print("\(inActions ? "::error::" : "[FAIL] ")\(step.title): \(error)")
+                failures.append(step.title)
+            }
+        }
+        if !failures.isEmpty {
+            throw SwiftCIError("\(failures.count) step(s) failed: \(failures.joined(separator: ", "))")
         }
     }
 

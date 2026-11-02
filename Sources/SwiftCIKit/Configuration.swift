@@ -130,6 +130,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         /// A tool lock replacing the built-in one (``ToolLock``), relative to the root; `.ci/tools.lock.json` is used
         /// without being named.
         public var lock: String?
+        /// The Swift files swift-format checks (globs, relative to the root), before `exclude`.
+        public var include: [String] = ["**"]
         /// Files the formatters skip (fixtures written to be badly formatted, generated code).
         public var exclude: [String] = ["**/Fixtures/**", "**/Generated/**", ".build/**"]
 
@@ -187,13 +189,22 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var run: String
         public var os: OS = .linux
         public var cadence: [Trigger] = Array(Trigger.everyChange).sorted()
+        /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
+        /// archive, such as a bundle with a model).
+        public var archives = false
 
-        public init(id: String, run: String, os: OS = .linux, cadence: [Trigger] = Array(Trigger.everyChange).sorted())
-        {
+        public init(
+            id: String,
+            run: String,
+            os: OS = .linux,
+            cadence: [Trigger] = Array(Trigger.everyChange).sorted(),
+            archives: Bool = false
+        ) {
             self.id = id
             self.run = run
             self.os = os
             self.cadence = cadence
+            self.archives = archives
         }
     }
 }

@@ -76,6 +76,8 @@ public struct PlannedJob: Codable, Sendable, Equatable {
     public var advisory: Bool
     /// The prefix of the job's SwiftPM cache key: one per check, OS and toolchain.
     public var cache: String
+    /// The job leaves release archives in `.build/swift-ci/dist`, to upload.
+    public var archives: Bool
 }
 
 /// What a run does, decided once by the `plan` job.
@@ -182,7 +184,9 @@ public struct Planner: Sendable {
                 installSwift: install,
                 xcode: os == .macOS ? (swift.xcode ?? "") : "",
                 advisory: entry.advisory,
-                cache: "swift-ci-\(os.rawValue)-\(id)-\(version)"
+                cache: "swift-ci-\(os.rawValue)-\(id)-\(version)",
+                archives: id == CheckID.archiveLinux || id == CheckID.archiveMacOS
+                    || configuration.commands.contains(where: { $0.id == id && $0.archives })
             )
         }
     }

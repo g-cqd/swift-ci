@@ -5,6 +5,7 @@ let usage = """
     swift-ci: plan, run and check a Swift package's or Xcode project's CI, the same way in CI and on a developer's machine.
 
       swift-ci init [--ref REF]                write .ci/action.json and the workflow calling swift-ci at REF
+      swift-ci baseline                        accept the analyzers' current findings (.ci/baselines/<tool>.json)
       swift-ci detect                          what the project is, as swift-ci reads it
       swift-ci validate                        check .ci/action.json and the tool lock
       swift-ci plan [--event E --ref R --base SHA] [--github-output FILE]
@@ -121,6 +122,13 @@ func main() throws {
             for path in written { print("wrote \(path)") }
             for path in kept { print("kept \(path) (it exists)") }
             if project.isXcode { print("\(CIFolder.configuration): keep only the schemes CI should build and test") }
+        case "baseline":
+            let (configuration, project, lock) = try context()
+            let folder = root.appendingPathComponent(CIFolder.path + "/baselines")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            var executor = Executor(root: root, dryRun: dryRun)
+            try executor.run(try StepPlanner(configuration: configuration, project: project, lock: lock).baselines())
+            print("wrote \(configuration.quality.analyzers.map(CIFolder.baseline(of:)).joined(separator: ", "))")
         case "detect":
             print(try json(try context().1))
         case "validate":
@@ -174,7 +182,7 @@ func main() throws {
                 tag: arguments.options["--tag"] ?? GitHubContext.current.tag,
                 dryRun: dryRun || command == "steps"
             )
-            try executor.run(steps)
+            try executor.run(steps, keepGoing: id == CheckID.quality)
         case "local":
             let (configuration, project, lock) = try context()
             let planner = StepPlanner(configuration: configuration, project: project, lock: lock)
@@ -187,7 +195,10 @@ func main() throws {
             var executor = Executor(root: root, dryRun: dryRun)
             for id in ids {
                 let files = id == CheckID.quality ? try Git.swiftFiles(root: root) : []
-                try executor.run(try planner.steps(for: id, swiftFiles: files, fileExists: fileExists, local: true))
+                try executor.run(
+                    try planner.steps(for: id, swiftFiles: files, fileExists: fileExists, local: true),
+                    keepGoing: id == CheckID.quality
+                )
             }
         case "publish":
             let configuration = try Configuration.load(root: root, file: configFile)

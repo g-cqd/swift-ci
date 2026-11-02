@@ -137,6 +137,6 @@ swift package --disable-sandbox swift-ci local   # from a package that depends o
 
 ## Status
 
-New. Covered: Swift packages and Xcode projects and workspaces (build, test, sanitizers, platforms, documentation),
+New; swift-ci's own CI runs on it. Covered: Swift packages and Xcode projects and workspaces (build, test, sanitizers, platforms, documentation),
 quality, and releases of a package's executables. Not yet: archiving or shipping an app (App Store, TestFlight;
 use `commands` with fastlane meanwhile), test-result reports (xcresult summaries, pull request comments).

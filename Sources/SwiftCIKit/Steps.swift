@@ -304,8 +304,10 @@ public struct StepPlanner: Sendable {
             let tool = try lock.tool(named: name)
             guard let base = tool.arguments else { throw SwiftCIError("\(name) is a formatter, not an analyzer") }
             var arguments = base
-            let baseline = ".\(name)-baseline.json"
-            if fileExists(baseline) { arguments += ["--baseline", baseline] }
+            // `.ci/baselines/<tool>.json`, else the root `.<tool>-baseline.json` the tools write by default.
+            if let baseline = [CIFolder.baseline(of: name), ".\(name)-baseline.json"].first(where: fileExists) {
+                arguments += ["--baseline", baseline]
+            }
             steps.append(.install(tool))
             steps.append(.tool(name: name, title: "\(name) \(tool.version)", arguments: arguments + project.corpus))
         }

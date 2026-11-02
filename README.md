@@ -1,7 +1,14 @@
 # swift-ci
 
-CI for Swift packages and Xcode projects: one reusable GitHub Actions workflow, configured by a `.swift-ci.json`,
+CI for Swift packages and Xcode projects: one reusable GitHub Actions workflow, configured by `.ci/action.json`,
 whose every decision is made by a tested Swift CLI. The same CLI runs the same checks on a developer's machine.
+
+```sh
+swift run --package-path path/to/swift-ci swift-ci init --ref <swift-ci commit>   # in the project
+```
+
+writes `.ci/action.json` (empty for a package; an Xcode project's schemes from `xcodebuild -list`) and the workflow
+below, and overwrites nothing.
 
 ```yaml
 # .github/workflows/ci.yml
@@ -18,7 +25,19 @@ jobs:
     secrets: inherit
 ```
 
-An empty `.swift-ci.json` (or none) is a working configuration for a Swift package.
+An empty `.ci/action.json` (or none) is a working configuration for a Swift package.
+
+## The `.ci` folder
+
+| Path | |
+| --- | --- |
+| `.ci/action.json` | the configuration |
+| `.ci/tools.lock.json` | replaces the built-in tool lock when present |
+| `.ci/baselines/<tool>.json` | an analyzer's baseline (else the root `.<tool>-baseline.json` the tools write) |
+| anything else | what `commands` run: scripts, fixtures |
+
+Paths inside the configuration are relative to the repository root. Formatter configurations (`.swift-format`,
+`.swiftlint.yml`, `.swiftformat`) stay at the root, where Xcode, editors and the tools find them.
 
 ## What runs when
 
@@ -82,7 +101,7 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     "formatters": "auto",              // auto: .swift-format, .swiftlint.yml, .swiftformat at the root
     "exclude": ["**/Fixtures/**"],     // files swift-format skips
     "local": ["litmus"],               // run by `swift-ci local` only
-    "lock": "ci/tools.lock.json"       // replaces the built-in tool lock
+    "lock": "tools/lock.json"          // a lock elsewhere than .ci/tools.lock.json
   },
   "release": { "executables": ["tool"], "notes": "release-notes/{tag}.md" },
   "documentation": { "targets": ["Kit"], "warningsAsErrors": true },
@@ -97,7 +116,7 @@ Quality runs tools from their release archives, pinned in a lock: a version and,
 A tool runs only if its archive has the pinned hash and the binary reports the pinned version, so a check cannot
 change because a tool moved under it. The built-in lock pins arcleak, deadwood, dolly, fcheck and modeler (the g-cqd
 analyzers), SwiftLint and SwiftFormat; swift-format comes with the toolchain. Each analyzer runs with
-`--strict --no-cache --relative-to .` and its committed `.<tool>-baseline.json` when there is one.
+`--strict --no-cache --relative-to .` and its committed baseline when there is one.
 
 ## On a developer's machine
 

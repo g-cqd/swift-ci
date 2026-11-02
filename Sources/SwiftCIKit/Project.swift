@@ -29,8 +29,9 @@ public struct Project: Codable, Sendable, Equatable {
 
     public var isXcode: Bool { kind != .package }
 
-    /// Reads the project at `root` as `configuration` describes it.
-    public static func detect(root: URL, configuration: Configuration) throws -> Project {
+    /// Reads the project at `root` as `configuration` describes it. An Xcode project needs schemes, unless
+    /// `requireSchemes` is false (`swift-ci init`, which finds them).
+    public static func detect(root: URL, configuration: Configuration, requireSchemes: Bool = true) throws -> Project {
         let files = FileManager.default
         let entries = (try? files.contentsOfDirectory(atPath: root.path)) ?? []
         let exists = { (name: String) in files.fileExists(atPath: root.appendingPathComponent(name).path) }
@@ -64,7 +65,7 @@ public struct Project: Codable, Sendable, Equatable {
                     throw SwiftCIError("no Package.swift, .xcworkspace or .xcodeproj at \(root.path)")
                 }
         }
-        if kind != .package, configuration.project.schemes.isEmpty {
+        if kind != .package, requireSchemes, configuration.project.schemes.isEmpty {
             throw SwiftCIError("an Xcode project needs project.schemes")
         }
 

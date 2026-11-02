@@ -1,6 +1,18 @@
 public import Foundation
 
-/// A project's `.swift-ci.json`. Every key is optional: an empty object is a valid configuration of a Swift package,
+/// Where swift-ci reads a project: `.ci/`, which also holds what the CI needs beside it (a tool lock, baselines, the
+/// scripts of `commands`). Formatter configurations stay at the root, where editors and the tools find them.
+public enum CIFolder {
+    public static let path = ".ci"
+    /// The configuration.
+    public static let configuration = ".ci/action.json"
+    /// A tool lock replacing the built-in one, used when present (``ToolLock``).
+    public static let toolLock = ".ci/tools.lock.json"
+    /// The baseline of an analyzer, preferred to the root `.<tool>-baseline.json` the tools write by default.
+    public static func baseline(of tool: String) -> String { ".ci/baselines/\(tool).json" }
+}
+
+/// A project's `.ci/action.json`. Every key is optional: an empty object is a valid configuration of a Swift package,
 /// tested on Linux and macOS on every change, with the heavy checks nightly. An unknown key is an error, so a typo
 /// cannot silently turn a check off.
 public struct Configuration: Codable, Sendable, Equatable {
@@ -115,7 +127,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         /// Formatters and linters: `auto` runs the ones whose configuration file is at the root
         /// (`.swift-format`, `.swiftlint.yml`, `.swiftformat`); a list runs exactly those.
         public var formatters: Formatters = .auto
-        /// A tool lock replacing the built-in one (``ToolLock``), relative to the root.
+        /// A tool lock replacing the built-in one (``ToolLock``), relative to the root; `.ci/tools.lock.json` is used
+        /// without being named.
         public var lock: String?
         /// Files the formatters skip (fixtures written to be badly formatted, generated code).
         public var exclude: [String] = ["**/Fixtures/**", "**/Generated/**", ".build/**"]
@@ -212,17 +225,17 @@ public enum Formatter: String, Codable, Sendable, CaseIterable {
 // MARK: - Strict decoding
 
 extension Configuration {
-    /// Reads `.swift-ci.json` text. An unknown key or a wrong type is an error naming its path. Missing keys take
+    /// Reads the configuration's text (`file` names it in errors). An unknown key or a wrong type is an error naming its path. Missing keys take
     /// their defaults: the text is merged onto the encoded defaults, then decoded.
-    public static func decode(_ data: Data) throws -> Configuration {
+    public static func decode(_ data: Data, file: String = CIFolder.configuration) throws -> Configuration {
         do {
             let object = try JSONSerialization.jsonObject(with: data)
-            try StrictKeys.check(object, against: try Defaults.encode(Defaults.sample()), path: "")
+            try StrictKeys.check(object, against: try Defaults.encode(Defaults.sample()), path: "", file: file)
             let merged = Defaults.merge(object, onto: try Defaults.template())
             let configuration = try JSONDecoder()
                 .decode(Configuration.self, from: try JSONSerialization.data(withJSONObject: merged))
             guard !configuration.swift.versions.isEmpty else {
-                throw SwiftCIError(".swift-ci.json: swift.versions needs at least one version")
+                throw SwiftCIError("\(file): swift.versions needs at least one version")
             }
             return configuration
         } catch let error as SwiftCIError {
@@ -230,11 +243,11 @@ extension Configuration {
         } catch let DecodingError.typeMismatch(_, context), let DecodingError.valueNotFound(_, context),
             let DecodingError.dataCorrupted(context)
         {
-            throw SwiftCIError(".swift-ci.json: \(Self.path(context.codingPath))\(context.debugDescription)")
+            throw SwiftCIError("\(file): \(Self.path(context.codingPath))\(context.debugDescription)")
         } catch let DecodingError.keyNotFound(key, context) {
-            throw SwiftCIError(".swift-ci.json: \(Self.path(context.codingPath + [key]))required")
+            throw SwiftCIError("\(file): \(Self.path(context.codingPath + [key]))required")
         } catch {
-            throw SwiftCIError(".swift-ci.json: \(error.localizedDescription)")
+            throw SwiftCIError("\(file): \(error.localizedDescription)")
         }
     }
 
@@ -244,14 +257,14 @@ extension Configuration {
     }
 
     /// The configuration at `root`, or the defaults when there is none.
-    public static func load(root: URL, file: String = ".swift-ci.json") throws -> Configuration {
+    public static func load(root: URL, file: String = CIFolder.configuration) throws -> Configuration {
         let url = file.hasPrefix("/") ? URL(fileURLWithPath: file) : root.appendingPathComponent(file)
         guard FileManager.default.fileExists(atPath: url.path) else { return Configuration() }
-        return try decode(try Data(contentsOf: url))
+        return try decode(try Data(contentsOf: url), file: file)
     }
 }
 
-/// The defaults every key of `.swift-ci.json` falls back to, as JSON: the encoded default configuration, and templates
+/// The defaults every key of the configuration falls back to, as JSON: the encoded default configuration, and templates
 /// used only when a key is given: `name?` for an optional section, `name[]` for each element of a list.
 enum Defaults {
     static func encode(_ value: some Encodable) throws -> [String: Any] {
@@ -303,19 +316,21 @@ enum StrictKeys {
     /// Maps whose keys are the user's.
     static let freeKeys: Set<String> = ["checks", "swift.environment", "swift.linuxImages"]
 
-    static func check(_ value: Any, against sample: Any, path: String) throws {
+    static func check(_ value: Any, against sample: Any, path: String, file: String) throws {
         if freeKeys.contains(path) { return }
         if let object = value as? [String: Any], let keys = sample as? [String: Any] {
             for (key, child) in object.sorted(by: { $0.key < $1.key }) where !(path.isEmpty && key == "$schema") {
                 let childPath = path.isEmpty ? key : "\(path).\(key)"
                 guard let schema = keys[key] else {
                     let known = keys.keys.sorted().joined(separator: ", ")
-                    throw SwiftCIError(".swift-ci.json: unknown key '\(childPath)' (known here: \(known))")
+                    throw SwiftCIError("\(file): unknown key '\(childPath)' (known here: \(known))")
                 }
-                try check(child, against: schema, path: childPath)
+                try check(child, against: schema, path: childPath, file: file)
             }
         } else if let array = value as? [Any], let element = (sample as? [Any])?.first {
-            for (index, child) in array.enumerated() { try check(child, against: element, path: "\(path)[\(index)]") }
+            for (index, child) in array.enumerated() {
+                try check(child, against: element, path: "\(path)[\(index)]", file: file)
+            }
         }
         // Anything else is a value: the decoder reports a wrong type.
     }

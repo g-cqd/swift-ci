@@ -101,10 +101,19 @@ public struct ToolLock: Codable, Sendable, Equatable {
         return lock
     }
 
-    /// The lock `configuration` names, else the built-in one.
+    /// The lock `configuration` names, else `.ci/tools.lock.json` when there is one, else the built-in one.
     public static func load(root: URL, configuration: Configuration) throws -> ToolLock {
-        guard let path = configuration.quality.lock else { return builtIn }
-        return try decode(try Data(contentsOf: root.appendingPathComponent(path)))
+        let named = configuration.quality.lock
+        let path = named ?? CIFolder.toolLock
+        let url = root.appendingPathComponent(path)
+        guard named != nil || FileManager.default.fileExists(atPath: url.path) else { return builtIn }
+        do {
+            return try decode(try Data(contentsOf: url))
+        } catch let error as SwiftCIError {
+            throw SwiftCIError("\(path): \(error.description)")
+        } catch {
+            throw SwiftCIError("\(path): \(error.localizedDescription)")
+        }
     }
 
     // swift-format comes with the toolchain (`swift format`), so it is not locked. The hashes below are those of the

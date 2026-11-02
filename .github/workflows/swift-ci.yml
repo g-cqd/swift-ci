@@ -1,6 +1,6 @@
 name: swift-ci
 
-# The reusable workflow: one graph for a Swift package or an Xcode project, configured by its `.swift-ci.json`.
+# The reusable workflow: one graph for a Swift package or an Xcode project, configured by its `.ci/action.json`.
 #
 #   on:
 #     push: { branches: [main], tags: ["v*"] }
@@ -31,7 +31,7 @@ on:
       config:
         description: The configuration file, relative to the repository root.
         type: string
-        default: .swift-ci.json
+        default: .ci/action.json
       plan-runner:
         description: Runner labels (JSON) of the plan, publish and gate jobs, which only read and upload.
         type: string

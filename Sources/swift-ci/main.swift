@@ -4,19 +4,20 @@ import SwiftCIKit
 let usage = """
     swift-ci: plan, run and check a Swift package's or Xcode project's CI, the same way in CI and on a developer's machine.
 
+      swift-ci init [--ref REF]                write .ci/action.json and the workflow calling swift-ci at REF
       swift-ci detect                          what the project is, as swift-ci reads it
-      swift-ci validate                        check .swift-ci.json and the tool lock
+      swift-ci validate                        check .ci/action.json and the tool lock
       swift-ci plan --event E --ref R [--base SHA] [--github-output FILE]
                                                the jobs of a GitHub event (JSON; GitHub outputs when asked)
       swift-ci steps <check>                   the steps of a check, without running them
       swift-ci run <check> [--tag T] [--dry-run]
-                                               run a check (or a command of .swift-ci.json)
+                                               run a check (or a command of .ci/action.json)
       swift-ci local [<check>...] [--dry-run]  quality (with the local-only tools) and this machine's debug tests
       swift-ci publish --assets DIR --tag T --repository OWNER/NAME [--dry-run]
       swift-ci release-note NOTE ASSETS        lint a release note against the .sha256 files in ASSETS, print it filled
       swift-ci version
 
-    Options: --root DIR (default: the current directory), --config FILE (default: .swift-ci.json).
+    Options: --root DIR (default: the current directory), --config FILE (default: .ci/action.json).
     """
 
 let version = "0.1.0"
@@ -70,7 +71,7 @@ func compact(_ value: some Encodable) throws -> String {
 
 /// Appends to a file, creating it.
 func append(_ text: String, to path: String) throws {
-    if !FileManager.default.fileExists(atPath: path) { FileManager.default.createFile(atPath: path, contents: nil) }
+    if !FileManager.default.fileExists(atPath: path) { _ = FileManager.default.createFile(atPath: path, contents: nil) }
     let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
     defer { try? handle.close() }
     try handle.seekToEnd()
@@ -85,7 +86,7 @@ func main() throws {
     let current = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
     let root = URL(fileURLWithPath: arguments.options["--root"] ?? ".", isDirectory: true, relativeTo: current)
         .standardizedFileURL
-    let configFile = arguments.options["--config"] ?? ".swift-ci.json"
+    let configFile = arguments.options["--config"] ?? CIFolder.configuration
     let dryRun = arguments.flags.contains("--dry-run")
 
     func context() throws -> (Configuration, Project, ToolLock) {
@@ -100,6 +101,24 @@ func main() throws {
     switch command {
         case "version":
             print(version)
+        case "init":
+            let configuration = try Configuration.load(root: root, file: configFile)
+            let project = try Project.detect(root: root, configuration: configuration, requireSchemes: false)
+            var schemes = configuration.project.schemes
+            if project.isXcode, schemes.isEmpty, let xcode = project.xcode {
+                let flag = project.kind == .xcodeWorkspace ? "-workspace" : "-project"
+                let list = try Shell.output(["xcodebuild", "-list", "-json", flag, xcode], directory: root, quiet: true)
+                schemes = try Scaffold.schemes(fromXcodebuildList: Data(list.utf8))
+            }
+            let files = try Scaffold.files(
+                project: project,
+                schemes: schemes,
+                ref: arguments.options["--ref"] ?? "main"
+            )
+            let (written, kept) = try Scaffold.write(files, root: root)
+            for path in written { print("wrote \(path)") }
+            for path in kept { print("kept \(path) (it exists)") }
+            if project.isXcode { print("\(CIFolder.configuration): keep only the schemes CI should build and test") }
         case "detect":
             print(try json(try context().1))
         case "validate":

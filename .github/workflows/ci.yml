@@ -1,0 +1,23 @@
+name: CI
+
+# swift-ci checks itself with its own workflow, from this very commit: a change to the CLI or the workflow is what
+# runs. Its tests, quality (swift-format and the g-cqd analyzers) and, for a tag, the release of the CLI.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/swift-ci.yml
+    permissions:
+      contents: write
+    secrets: inherit

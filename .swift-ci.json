@@ -1,0 +1,5 @@
+{
+  "swift": { "versions": ["6.4.1"], "matrix": ["linux-debug"], "advisory": ["nightly-main"] },
+  "quality": { "paths": ["Sources"] },
+  "release": { "executables": ["swift-ci"], "notes": "release-notes/{tag}.md" }
+}

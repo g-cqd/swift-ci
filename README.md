@@ -1,0 +1,123 @@
+# swift-ci
+
+CI for Swift packages and Xcode projects: one reusable GitHub Actions workflow, configured by a `.swift-ci.json`,
+whose every decision is made by a tested Swift CLI. The same CLI runs the same checks on a developer's machine.
+
+```yaml
+# .github/workflows/ci.yml
+on:
+  push: { branches: [main], tags: ["v*"] }
+  pull_request:
+  merge_group:
+  schedule: [{ cron: "17 3 * * *" }]
+  workflow_dispatch:
+jobs:
+  ci:
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@<commit>
+    permissions: { contents: write }   # write is used only to publish a tag
+    secrets: inherit
+```
+
+An empty `.swift-ci.json` (or none) is a working configuration for a Swift package.
+
+## What runs when
+
+`swift-ci plan` reads the configuration, the project and the event, and decides the jobs. Every other job runs one
+`swift-ci run <check>`.
+
+| Check | Runs on | Default cadence |
+| --- | --- | --- |
+| `quality`: formatters and linters by configuration file, the g-cqd analyzers | Linux | every change |
+| `linux-debug`, `linux-release`, `linux-address` | Linux | every change |
+| `consumer`: build and test without `swift.environment` (only when it is set) | Linux | every change |
+| `macos-debug` (with coverage) | macOS | every change |
+| `linux-thread`, `macos-release`, `macos-address`, `macos-thread` | | nightly, tag, manual |
+| `platforms`: every `platforms` entry, on one runner | macOS | nightly, tag, manual |
+| `documentation` | macOS | nightly, tag, manual |
+| `archive-linux`, `archive-macos`, then the release | both | tag (archives also manual) |
+| `commands`: the project's own | as configured | as configured |
+
+- **Every change** is a push, a pull request, a merge queue, a tag or a manual run. A change that touches only
+  `documentationOnlyPaths` (docs, ADRs, release notes, Markdown) runs nothing, and the gate passes.
+- **Nightly** runs only if a commit landed in the last 24 hours.
+- A newer push cancels the run of the previous one on the same ref; a tag or the nightly run is never cancelled.
+- **Build once.** Tests are built once and run with `--skip-build`. In release, `-Xswiftc -enable-testing` makes that
+  build the one `swift test` needs: `swift build -c release` followed by `swift test -c release` compiles everything
+  twice. Xcode projects use `build-for-testing` then `test-without-building`.
+- **Linux first.** Linux runners are cheap and plentiful; macOS ones are counted per account and queue. So the version
+  matrix and the sanitizers of every change run on Linux, and a change needs one macOS job.
+- `gate` is the one check a branch rule requires: a skipped job passes, a failed or cancelled one does not.
+  Advisory jobs (`swift.advisory`, such as a nightly toolchain) report but never fail it.
+
+## Configuration
+
+Every key is optional; an unknown key is an error naming its path, so a typo cannot silently turn a check off.
+
+```jsonc
+{
+  "project": {
+    "kind": "auto",                    // auto | package | xcode
+    "xcode": "App.xcworkspace",        // when there are several
+    "schemes": ["App"],                // Xcode: built and tested; a package: its platform builds
+    "testPlan": "Unit",
+    "destination": "platform=iOS Simulator,name=iPhone 17",
+    "packages": ["Modules/Core"],      // an Xcode project's local packages, tested with swift test
+    "linux": true                      // default: a package builds on Linux, an Xcode project does not
+  },
+  "swift": {
+    "versions": ["6.4.1", "6.3.3"],    // the first is primary; the matrix checks run on each
+    "matrix": ["linux-debug"],
+    "advisory": ["nightly-main"],      // run by the matrix checks, never fail the run
+    "macOS": "primary",                // primary | xcode (the selected Xcode's toolchain) | a version
+    "xcode": "26.6",                   // the Xcode to select on macOS runners
+    "environment": { "PKG_DEV": "1" }, // every build and test; adds the consumer check
+    "parallel": true
+  },
+  "runners": { "macOS": ["macos-26"], "linux": ["ubuntu-latest"] },   // self-hosted labels work
+  "checks": { "macos-release": ["push"], "linux-address": [] },       // cadence overrides; [] turns one off
+  "platforms": [{ "name": "iOS" }, { "name": "watchOS", "destination": "generic/platform=watchOS" }],
+  "quality": {
+    "paths": ["Sources"],              // what the analyzers read (default: Sources and Tests)
+    "analyzers": ["deadwood", "dolly", "arcleak"],   // also: fcheck, modeler
+    "formatters": "auto",              // auto: .swift-format, .swiftlint.yml, .swiftformat at the root
+    "exclude": ["**/Fixtures/**"],     // files swift-format skips
+    "local": ["litmus"],               // run by `swift-ci local` only
+    "lock": "ci/tools.lock.json"       // replaces the built-in tool lock
+  },
+  "release": { "executables": ["tool"], "notes": "release-notes/{tag}.md" },
+  "documentation": { "targets": ["Kit"], "warningsAsErrors": true },
+  "commands": [{ "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] }],
+  "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
+}
+```
+
+## Tools
+
+Quality runs tools from their release archives, pinned in a lock: a version and, per platform, the archive's SHA-256.
+A tool runs only if its archive has the pinned hash and the binary reports the pinned version, so a check cannot
+change because a tool moved under it. The built-in lock pins arcleak, deadwood, dolly, fcheck and modeler (the g-cqd
+analyzers), SwiftLint and SwiftFormat; swift-format comes with the toolchain. Each analyzer runs with
+`--strict --no-cache --relative-to .` and its committed `.<tool>-baseline.json` when there is one.
+
+## On a developer's machine
+
+```sh
+swift run swift-ci local              # quality, with the local-only tools, then this machine's debug tests
+swift run swift-ci steps macos-debug  # what a check would run
+swift run swift-ci plan --event push --ref refs/heads/main --base HEAD~1
+swift package --disable-sandbox swift-ci local   # from a package that depends on swift-ci
+```
+
+## Design
+
+- The workflow only wires; the CLI decides (`SwiftCIKit`, tested: configuration, detection, planning, steps, the tool
+  lock and its installation, release notes, artifact bundles). No dependencies, so the CLI builds in seconds on any
+  runner; every job runs the CLI of the commit the caller pinned (`job.workflow_sha`).
+- Tags publish: the archives both OS jobs made, a SwiftPM `.artifactbundle` per executable, and the release note of
+  the tag, linted (every fixed section present) and with its Archives section filled from the published checksums.
+
+## Status
+
+New. Covered: Swift packages and Xcode projects and workspaces (build, test, sanitizers, platforms, documentation),
+quality, and releases of a package's executables. Not yet: archiving or shipping an app (App Store, TestFlight;
+use `commands` with fastlane meanwhile), test-result reports (xcresult summaries, pull request comments).

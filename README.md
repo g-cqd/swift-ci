@@ -75,6 +75,9 @@ swift run --package-path swift-ci swift-ci run linux-debug
 | `.ci/baselines/<tool>.json` | an analyzer's baseline (else the root `.<tool>-baseline.json` the tools write) |
 | anything else | what `commands` run: scripts, fixtures |
 
+`swift-ci baseline` writes each analyzer's current findings to `.ci/baselines/`, to adopt the gate on a codebase with
+a backlog: from then on only a new finding fails.
+
 Paths inside the configuration are relative to the repository root. Formatter configurations (`.swift-format`,
 `.swiftlint.yml`, `.swiftformat`) stay at the root, where Xcode, editors and the tools find them.
 
@@ -138,13 +141,18 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     "paths": ["Sources"],              // what the analyzers read (default: Sources and Tests)
     "analyzers": ["deadwood", "dolly", "arcleak"],   // also: fcheck, modeler
     "formatters": "auto",              // auto: .swift-format, .swiftlint.yml, .swiftformat at the root
+    "include": ["Package.swift", "Sources/**", "Tests/*/*.swift"],   // what swift-format checks (default: all)
     "exclude": ["**/Fixtures/**"],     // files swift-format skips
     "local": ["litmus"],               // run by `swift-ci local` only
     "lock": "tools/lock.json"          // a lock elsewhere than .ci/tools.lock.json
   },
   "release": { "executables": ["tool"], "notes": "release-notes/{tag}.md" },
   "documentation": { "targets": ["Kit"], "warningsAsErrors": true },
-  "commands": [{ "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] }],
+  "commands": [
+    { "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] },
+    { "id": "self-analysis", "run": "swift run tool analyze Sources", "after": "linux-debug" },  // in that job, warm
+    { "id": "full", "run": ".ci/full-bundle.sh", "after": "archive-macos", "archives": true }   // published too
+  ],
   "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
 }
 ```

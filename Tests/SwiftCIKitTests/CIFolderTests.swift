@@ -166,3 +166,45 @@ struct AdoptionTests {
         #expect(!FileManager.default.fileExists(atPath: stopped.root.appendingPathComponent("reached").path))
     }
 }
+
+struct AfterTests {
+    let json = #"""
+        {"release": {"executables": ["t"]},
+         "commands": [
+           {"id": "self-analysis", "run": "swift run t analyze Sources", "after": "linux-debug"},
+           {"id": "no-gcd", "run": "Scripts/no-gcd.sh", "after": "quality"},
+           {"id": "full", "run": "Scripts/full.sh", "after": "archive-macos", "archives": true},
+           {"id": "alone", "run": "x"}
+         ]}
+        """#
+
+    @Test func `a command after a check runs at the end of that check's job, not in a job of its own`() throws {
+        let planner = StepPlanner(configuration: try configuration(json), project: package, lock: .builtIn)
+        #expect(commandLines(try planner.steps(for: CheckID.linuxDebug)).last == "sh: swift run t analyze Sources")
+        #expect(commandLines(try planner.steps(for: CheckID.quality)).last == "sh: Scripts/no-gcd.sh")
+        let plan = try Planner(configuration: try configuration(json), project: package)
+            .plan(event: Event(trigger: .tag, ref: "refs/tags/v1"), changedFiles: nil)
+        let ids = (plan.linux + plan.macOS).map(\.id)
+        #expect(
+            ids.contains("alone") && !ids.contains("self-analysis") && !ids.contains("no-gcd") && !ids.contains("full")
+        )
+        // The host of a command that leaves archives uploads them.
+        #expect(plan.macOS.first { $0.id == CheckID.archiveMacOS }?.archives == true)
+    }
+
+    @Test func `after must name a check or a command that runs on its own`() {
+        #expect(throws: SwiftCIError.self) {
+            try Planner(
+                configuration: try configuration(#"{"commands": [{"id": "a", "run": "x", "after": "nothing"}]}"#),
+                project: package
+            )
+            .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        }
+        #expect(throws: SwiftCIError.self) {
+            let chained =
+                #"{"commands": [{"id": "a", "run": "x", "after": "quality"}, {"id": "b", "run": "y", "after": "a"}]}"#
+            _ = try Planner(configuration: try configuration(chained), project: package)
+                .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        }
+    }
+}

@@ -134,7 +134,7 @@ public struct Planner: Sendable {
         let checks = Check.catalog.filter {
             $0.applies(project, configuration) && cadence(of: $0).contains(event.trigger)
         }
-        let commands = configuration.commands.filter { $0.cadence.contains(event.trigger) }
+        let commands = configuration.commands.filter { $0.after == nil && $0.cadence.contains(event.trigger) }
         for (id, os) in checks.map({ ($0.id, $0.os) }) + commands.map({ ($0.id, $0.os) }) {
             let planned = jobs(for: id, os: os)
             plan.advisory += planned.filter(\.advisory)
@@ -186,7 +186,7 @@ public struct Planner: Sendable {
                 advisory: entry.advisory,
                 cache: "swift-ci-\(os.rawValue)-\(id)-\(version)",
                 archives: id == CheckID.archiveLinux || id == CheckID.archiveMacOS
-                    || configuration.commands.contains(where: { $0.id == id && $0.archives })
+                    || configuration.commands.contains(where: { $0.archives && ($0.id == id || $0.after == id) })
             )
         }
     }
@@ -204,6 +204,15 @@ public struct Planner: Sendable {
         var seen = known
         for command in configuration.commands where !seen.insert(command.id).inserted {
             throw SwiftCIError("commands: id '\(command.id)' is used twice or names a built-in check")
+        }
+        for command in configuration.commands {
+            guard let host = command.after else { continue }
+            guard seen.contains(host), host != command.id else {
+                throw SwiftCIError("commands.\(command.id).after: no check or command '\(host)'")
+            }
+            if configuration.commands.contains(where: { $0.id == host && $0.after != nil }) {
+                throw SwiftCIError("commands.\(command.id).after: '\(host)' itself runs after another check")
+            }
         }
     }
 }

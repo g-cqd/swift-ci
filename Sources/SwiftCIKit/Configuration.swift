@@ -192,19 +192,24 @@ public struct Configuration: Codable, Sendable, Equatable {
         /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
         /// archive, such as a bundle with a model).
         public var archives = false
+        /// A check (or command) this one runs at the end of, in its job and on its warm tree, instead of in a job of
+        /// its own; it then runs where and when that check does (`os` and `cadence` do not apply).
+        public var after: String?
 
         public init(
             id: String,
             run: String,
             os: OS = .linux,
             cadence: [Trigger] = Array(Trigger.everyChange).sorted(),
-            archives: Bool = false
+            archives: Bool = false,
+            after: String? = nil
         ) {
             self.id = id
             self.run = run
             self.os = os
             self.cadence = cadence
             self.archives = archives
+            self.after = after
         }
     }
 }
@@ -300,7 +305,7 @@ enum Defaults {
         sample.quality.lock = ""
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
-        sample.commands = [Configuration.Command(id: "", run: "")]
+        sample.commands = [Configuration.Command(id: "", run: "", after: "")]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]
         return sample
     }

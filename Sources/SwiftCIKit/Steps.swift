@@ -102,6 +102,12 @@ public struct StepPlanner: Sendable {
         fileExists: (String) -> Bool = { _ in false },
         local: Bool = false
     ) throws -> [Step] {
+        // The commands that run at the end of this one's job.
+        let after = configuration.commands.filter { $0.after == id }.map { Step.shell(title: $0.id, script: $0.run) }
+        return try own(id, swiftFiles: swiftFiles, fileExists: fileExists, local: local) + after
+    }
+
+    func own(_ id: String, swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
         if let command = configuration.commands.first(where: { $0.id == id }) {
             return [.shell(title: command.id, script: command.run)]
         }

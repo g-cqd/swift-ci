@@ -7,8 +7,10 @@ let usage = """
       swift-ci init [--ref REF]                write .ci/action.json and the workflow calling swift-ci at REF
       swift-ci detect                          what the project is, as swift-ci reads it
       swift-ci validate                        check .ci/action.json and the tool lock
-      swift-ci plan --event E --ref R [--base SHA] [--github-output FILE]
-                                               the jobs of a GitHub event (JSON; GitHub outputs when asked)
+      swift-ci plan [--event E --ref R --base SHA] [--github-output FILE]
+                                               the jobs of an event (JSON; GitHub outputs in Actions). E is a GitHub
+                                               event name or a trigger: push, pull-request, merge-queue, nightly, tag,
+                                               dispatch. In GitHub Actions all three come from the run.
       swift-ci steps <check>                   the steps of a check, without running them
       swift-ci run <check> [--tag T] [--dry-run]
                                                run a check (or a command of .ci/action.json)
@@ -129,13 +131,16 @@ func main() throws {
             print("ok: \(configFile) and the tool lock are valid (\(project.kind.rawValue))")
         case "plan":
             let (configuration, project, _) = try context()
-            let event = try Event.gitHub(
-                eventName: try arguments.require("--event"),
-                ref: try arguments.require("--ref")
-            )
+            // In GitHub Actions the event, the ref and the base come from the run; elsewhere they are given.
+            let github = GitHubContext.current
+            guard let name = arguments.options["--event"] ?? github.eventName,
+                let ref = arguments.options["--ref"] ?? github.ref
+            else { throw SwiftCIError("plan needs --event and --ref (outside GitHub Actions)") }
+            let event = try Event.named(name, ref: ref)
+            let base = arguments.options["--base"] ?? github.base
             let changed =
                 [.push, .pullRequest, .mergeQueue].contains(event.trigger)
-                ? Git.changedFiles(root: root, base: arguments.options["--base"]) : nil
+                ? Git.changedFiles(root: root, base: base) : nil
             let hours = event.trigger == .nightly ? Git.hoursSinceLastCommit(root: root) : nil
             let plan = try Planner(configuration: configuration, project: project)
                 .plan(event: event, changedFiles: changed, hoursSinceLastCommit: hours)
@@ -164,7 +169,11 @@ func main() throws {
             let planner = StepPlanner(configuration: configuration, project: project, lock: lock)
             let files = id == CheckID.quality ? try Git.swiftFiles(root: root) : []
             let steps = try planner.steps(for: id, swiftFiles: files, fileExists: fileExists)
-            var executor = Executor(root: root, tag: arguments.options["--tag"], dryRun: dryRun || command == "steps")
+            var executor = Executor(
+                root: root,
+                tag: arguments.options["--tag"] ?? GitHubContext.current.tag,
+                dryRun: dryRun || command == "steps"
+            )
             try executor.run(steps)
         case "local":
             let (configuration, project, lock) = try context()
@@ -186,7 +195,7 @@ func main() throws {
                 root: root,
                 assets: URL(fileURLWithPath: try arguments.require("--assets"), relativeTo: current)
                     .standardizedFileURL,
-                tag: try arguments.require("--tag"),
+                tag: try arguments.options["--tag"] ?? GitHubContext.current.tag ?? arguments.require("--tag"),
                 configuration: configuration,
                 dryRun: dryRun
             )

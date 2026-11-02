@@ -27,6 +27,45 @@ jobs:
 
 An empty `.ci/action.json` (or none) is a working configuration for a Swift package.
 
+### As a step of any workflow
+
+The repository is also an action (`action.yml`), for a workflow with its own layout. It builds the CLI from the
+action's source (cached by its hash) and runs one command; in GitHub Actions, `plan`, `run` and `publish` read the
+event, the ref, the base commit and the tag from the run. It needs a Swift toolchain on the runner.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    container: swift:6.4.1-noble
+    outputs: { linux: "${{ steps.plan.outputs.linux }}" }
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 2 }
+      - id: plan
+        uses: g-cqd/swift-ci@<commit>
+        with: { command: plan }          # outputs linux, macos, advisory (matrices), publish, skipped
+  linux:
+    needs: plan
+    strategy: { matrix: { include: "${{ fromJSON(needs.plan.outputs.linux) }}" } }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: g-cqd/swift-ci@<commit>
+        with: { arguments: "${{ matrix.id }}" }   # swift-ci run <check>
+```
+
+### From another CI
+
+The CLI is the portable part: `--event` takes a trigger (`push`, `pull-request`, `merge-queue`, `nightly`, `tag`,
+`dispatch`) as well as a GitHub event name.
+
+```sh
+swift run --package-path swift-ci swift-ci plan --event push --ref main --base "$PREVIOUS_COMMIT"
+swift run --package-path swift-ci swift-ci run linux-debug
+```
+
 ## The `.ci` folder
 
 | Path | |

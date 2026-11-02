@@ -21,3 +21,28 @@ jobs:
     permissions:
       contents: write
     secrets: inherit
+
+  # The action alone, as a step of someone else's workflow would use it (`uses: g-cqd/swift-ci@<commit>`).
+  action:
+    runs-on: ubuntu-latest
+    container: swift:6.4.1-noble
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, fetch-depth: 2 }
+      - uses: ./
+        with: { command: validate }
+      - id: plan
+        uses: ./
+        with: { command: plan }
+      - name: The plan's outputs are matrices
+        env:
+          LINUX: ${{ steps.plan.outputs.linux }}
+          HAS_MACOS: ${{ steps.plan.outputs.has-macos }}
+          SKIPPED: ${{ steps.plan.outputs.skipped }}
+        run: |
+          echo "linux: $LINUX"
+          echo "has-macos: $HAS_MACOS, skipped: '$SKIPPED'"
+          case "$LINUX" in \[*\]) ;; *) echo "linux is not a JSON list" >&2; exit 1 ;; esac
+      - uses: ./
+        with: { command: steps, arguments: macos-debug }

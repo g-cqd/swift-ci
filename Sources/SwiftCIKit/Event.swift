@@ -1,3 +1,5 @@
+public import Foundation
+
 /// What started a run. Every check of a configuration says on which of these it runs (its cadence).
 public enum Trigger: String, Codable, Sendable, CaseIterable, Comparable {
     /// A push to a branch.
@@ -51,6 +53,54 @@ public struct Event: Sendable, Equatable {
             default: throw SwiftCIError("unsupported event '\(eventName)'")
         }
         return Event(trigger: trigger, ref: ref)
+    }
+}
+
+extension Event {
+    /// The event named `name`: a GitHub event name (`push`, `pull_request`, `schedule`…), or, from any other CI, a
+    /// trigger (`push`, `pull-request`, `merge-queue`, `nightly`, `tag`, `dispatch`). For `tag`, `ref` may be the tag's
+    /// name.
+    public static func named(_ name: String, ref: String) throws(SwiftCIError) -> Event {
+        if let event = try? gitHub(eventName: name, ref: ref) { return event }
+        guard let trigger = Trigger(rawValue: name) else {
+            let triggers = Trigger.allCases.map(\.rawValue).joined(separator: ", ")
+            throw SwiftCIError("unknown event '\(name)': a GitHub event name, or one of \(triggers)")
+        }
+        let full = trigger == .tag && !ref.hasPrefix("refs/") ? "refs/tags/\(ref)" : ref
+        return Event(trigger: trigger, ref: full)
+    }
+}
+
+/// What a GitHub Actions job knows of its run, from its environment and event payload, so the CLI needs no
+/// arguments there.
+public struct GitHubContext: Sendable, Equatable {
+    public var eventName: String?
+    public var ref: String?
+    /// The tag of a tag run.
+    public var tag: String?
+    /// What a change is compared with: the previous head of a push, the base of a pull request or of a queue.
+    public var base: String?
+
+    public init(environment: [String: String], payload: Data?) {
+        eventName = environment["GITHUB_EVENT_NAME"]
+        ref = environment["GITHUB_REF"]
+        tag = environment["GITHUB_REF_TYPE"] == "tag" ? environment["GITHUB_REF_NAME"] : nil
+        base = payload.flatMap(Self.base(inPayload:))
+    }
+
+    /// The current process's.
+    public static var current: GitHubContext {
+        let environment = ProcessInfo.processInfo.environment
+        let payload = environment["GITHUB_EVENT_PATH"].flatMap { FileManager.default.contents(atPath: $0) }
+        return GitHubContext(environment: environment, payload: payload)
+    }
+
+    /// `before` (push), `pull_request.base.sha`, `merge_group.base_sha`; nil for another event or a new branch.
+    static func base(inPayload data: Data) -> String? {
+        guard let event = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        let pullRequest = (event["pull_request"] as? [String: Any])?["base"] as? [String: Any]
+        let candidates = [event["before"], pullRequest?["sha"], (event["merge_group"] as? [String: Any])?["base_sha"]]
+        return candidates.compactMap { $0 as? String }.first { !$0.isEmpty && !$0.allSatisfy { $0 == "0" } }
     }
 }
 

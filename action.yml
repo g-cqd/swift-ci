@@ -1,0 +1,125 @@
+name: swift-ci
+description: >-
+  Plan and run the CI checks of a Swift package or an Xcode project, configured by .ci/action.json: formatters,
+  linters and the g-cqd analyzers from pinned releases, tests built once, sanitizers, platforms, documentation,
+  release archives.
+author: g-cqd
+branding:
+  icon: check-circle
+  color: orange
+
+# A step of any workflow:
+#
+#   - uses: g-cqd/swift-ci@<commit>
+#     with: { arguments: quality }            # swift-ci run quality
+#
+#   - id: plan
+#     uses: g-cqd/swift-ci@<commit>
+#     with: { command: plan }                 # outputs: linux, macos, advisory (JSON matrices), publish, skipped
+#
+# The CLI is built from this action's own source (the pinned commit), cached per source, OS and architecture. It
+# needs a Swift toolchain on the runner: a Swift image on Linux, Xcode's or one installed by setup-swift on macOS.
+# The reusable workflow (.github/workflows/swift-ci.yml) is the whole graph built from these steps.
+
+inputs:
+  command:
+    description: >-
+      plan, run, local, steps, validate, detect, init, publish, release-note or version. In GitHub Actions, plan, run
+      and publish read the event, the ref, the base and the tag from the run.
+    required: false
+    default: run
+  arguments:
+    description: What follows the command, such as the check of run (quality, linux-debug, macos-debug…).
+    required: false
+    default: ""
+  config:
+    description: The configuration, relative to the working directory.
+    required: false
+    default: .ci/action.json
+  working-directory:
+    description: The project's root.
+    required: false
+    default: .
+
+outputs:
+  linux:
+    description: plan — the Linux jobs (a JSON list for a matrix's include).
+    value: ${{ steps.swift-ci.outputs.linux }}
+  macos:
+    description: plan — the macOS jobs.
+    value: ${{ steps.swift-ci.outputs.macos }}
+  advisory:
+    description: plan — jobs whose failure fails nothing.
+    value: ${{ steps.swift-ci.outputs.advisory }}
+  has-linux:
+    value: ${{ steps.swift-ci.outputs.has-linux }}
+    description: plan — whether there are Linux jobs.
+  has-macos:
+    value: ${{ steps.swift-ci.outputs.has-macos }}
+    description: plan — whether there are macOS jobs.
+  has-advisory:
+    value: ${{ steps.swift-ci.outputs.has-advisory }}
+    description: plan — whether there are advisory jobs.
+  publish:
+    description: plan — whether the run publishes a release.
+    value: ${{ steps.swift-ci.outputs.publish }}
+  skipped:
+    description: plan — why nothing runs, when nothing does.
+    value: ${{ steps.swift-ci.outputs.skipped }}
+
+runs:
+  using: composite
+  steps:
+    - name: swift-ci's source
+      id: source
+      shell: bash
+      env:
+        SOURCE: ${{ github.action_path }}
+      # The key is the hash of the source, not the ref: a tag or a branch moves, the content does not.
+      run: |
+        set -euo pipefail
+        cd "$SOURCE"
+        if command -v sha256sum > /dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
+        hash="$(find Package.swift Sources -type f | LC_ALL=C sort | xargs "${sum[@]}" | "${sum[@]}" | cut -c1-16)"
+        echo "key=swift-ci-cli-${RUNNER_OS}-${RUNNER_ARCH}-$hash" >> "$GITHUB_OUTPUT"
+    - name: Restore the swift-ci build
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ github.action_path }}/.build
+        key: ${{ steps.source.outputs.key }}
+    - name: Build swift-ci
+      shell: bash
+      env:
+        SOURCE: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        swift build -c release --package-path "$SOURCE" --product swift-ci > "$RUNNER_TEMP/swift-ci-build.log" 2>&1 \
+          || { cat "$RUNNER_TEMP/swift-ci-build.log"; exit 1; }
+        echo "$(swift build -c release --package-path "$SOURCE" --show-bin-path)" >> "$GITHUB_PATH"
+    - name: Save the swift-ci build
+      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ github.action_path }}/.build
+        key: ${{ steps.source.outputs.key }}
+    - name: swift-ci ${{ inputs.command }} ${{ inputs.arguments }}
+      id: swift-ci
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        ARGUMENTS: ${{ inputs.arguments }}
+        CONFIG: ${{ inputs.config }}
+      run: |
+        set -uo pipefail
+        git config --global --add safe.directory "$PWD" 2> /dev/null || true
+        read -r -a words <<< "$ARGUMENTS"
+        if [ "$RUNNER_OS" = macOS ]; then
+          # Into a file: an orphaned child then holds a file, not the runner's log pipe, and cannot wedge the job.
+          swift-ci "$COMMAND" "${words[@]}" --config "$CONFIG" > "$RUNNER_TEMP/swift-ci.log" 2>&1 < /dev/null
+          status=$?
+          cat "$RUNNER_TEMP/swift-ci.log"
+          exit $status
+        fi
+        swift-ci "$COMMAND" "${words[@]}" --config "$CONFIG"

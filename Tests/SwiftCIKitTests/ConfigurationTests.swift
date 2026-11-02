@@ -112,6 +112,39 @@ struct EventTests {
     }
 }
 
+struct GitHubContextTests {
+    @Test func `the base is the previous head of a push, the base of a pull request or of a queue`() {
+        func base(_ json: String) -> String? { GitHubContext(environment: [:], payload: Data(json.utf8)).base }
+        #expect(base(#"{"before": "abc123", "after": "def"}"#) == "abc123")
+        #expect(base(#"{"pull_request": {"base": {"sha": "b4se"}, "head": {"sha": "h"}}}"#) == "b4se")
+        #expect(base(#"{"merge_group": {"base_sha": "qu3ue", "head_sha": "h"}}"#) == "qu3ue")
+        #expect(base(#"{"before": "0000000000000000000000000000000000000000"}"#) == nil)  // a new branch
+        #expect(base(#"{"schedule": "17 3 * * *"}"#) == nil)
+        #expect(base("not json") == nil)
+    }
+
+    @Test func `the event, ref and tag come from the environment`() {
+        let tag = GitHubContext(
+            environment: [
+                "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/v1.0.0", "GITHUB_REF_TYPE": "tag",
+                "GITHUB_REF_NAME": "v1.0.0"
+            ],
+            payload: nil
+        )
+        #expect(tag.eventName == "push" && tag.ref == "refs/tags/v1.0.0" && tag.tag == "v1.0.0")
+        let branch = GitHubContext(environment: ["GITHUB_REF_TYPE": "branch", "GITHUB_REF_NAME": "main"], payload: nil)
+        #expect(branch.tag == nil)
+    }
+
+    @Test func `another CI names a trigger, and a tag by its name`() throws {
+        #expect(try Event.named("nightly", ref: "main").trigger == .nightly)
+        #expect(try Event.named("pull-request", ref: "x").trigger == .pullRequest)
+        #expect(try Event.named("tag", ref: "v2.0.0").tagName == "v2.0.0")
+        #expect(try Event.named("schedule", ref: "refs/heads/main").trigger == .nightly)  // a GitHub name
+        #expect(throws: SwiftCIError.self) { try Event.named("cron", ref: "") }
+    }
+}
+
 struct GlobTests {
     @Test(arguments: [
         ("*.md", "README.md", true), ("*.md", "docs/guide/a.md", true), ("*.md", "README.markdown", false),

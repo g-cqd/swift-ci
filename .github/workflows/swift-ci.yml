@@ -51,10 +51,8 @@ concurrency:
   group: swift-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule' }}
 
-# Every job checks out this repository at the commit of this workflow the caller pinned (`job.workflow_sha`), and
-# runs the CLI of that commit.
-env:
-  SWIFT_CI_SOURCE: .build/swift-ci-src
+# Every job checks out this repository at the commit of this workflow the caller pinned (`job.workflow_sha`) and runs
+# its root action (action.yml), which builds the CLI of that commit and runs one command.
 
 jobs:
   plan:
@@ -78,19 +76,15 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: ${{ env.SWIFT_CI_SOURCE }}
+          path: .build/swift-ci-src
           persist-credentials: false
-      - uses: ./.build/swift-ci-src/actions/setup
-        with: { ref: "${{ job.workflow_sha }}" }
+      # The event, the ref and the commit the change is compared with come from the run.
       - name: Plan
         id: plan
-        env:
-          CONFIG: ${{ inputs.config }}
-          # What the change is compared with: the previous head of a push, the base of a pull request or a queue.
-          BASE: ${{ github.event.before || github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          swift-ci plan --config "$CONFIG" --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" --base "$BASE"
+        uses: ./.build/swift-ci-src
+        with:
+          command: plan
+          config: ${{ inputs.config }}
 
   linux:
     needs: plan
@@ -122,24 +116,18 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: ${{ env.SWIFT_CI_SOURCE }}
+          path: .build/swift-ci-src
           persist-credentials: false
-      - uses: ./.build/swift-ci-src/actions/setup
-        with: { ref: "${{ job.workflow_sha }}" }
       - name: ${{ matrix.title }}
-        env:
-          CONFIG: ${{ inputs.config }}
-          CHECK: ${{ matrix.id }}
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          tag=(); [ "$GITHUB_REF_TYPE" = tag ] && tag=(--tag "$GITHUB_REF_NAME")
-          swift-ci run "$CHECK" --config "$CONFIG" "${tag[@]}"
-        shell: bash
+        uses: ./.build/swift-ci-src
+        with:
+          arguments: ${{ matrix.id }}
+          config: ${{ inputs.config }}
       - name: Save the SwiftPM tree
         if: ${{ always() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          # Not the CLI's own checkout and build, which the setup action caches per commit.
+          # Not swift-ci's own checkout and build, which its action caches by the hash of its source.
           path: |
             .build
             !.build/swift-ci-src
@@ -195,28 +183,18 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: ${{ env.SWIFT_CI_SOURCE }}
+          path: .build/swift-ci-src
           persist-credentials: false
-      - uses: ./.build/swift-ci-src/actions/setup
-        with: { ref: "${{ job.workflow_sha }}" }
       - name: ${{ matrix.title }}
-        env:
-          CONFIG: ${{ inputs.config }}
-          CHECK: ${{ matrix.id }}
-        # Into a file: an orphaned child then holds a file, not the runner's log pipe, and cannot wedge the job.
-        run: |
-          tag=(); [ "$GITHUB_REF_TYPE" = tag ] && tag=(--tag "$GITHUB_REF_NAME")
-          set +e
-          swift-ci run "$CHECK" --config "$CONFIG" "${tag[@]}" > "$RUNNER_TEMP/check.log" 2>&1 < /dev/null
-          status=$?
-          cat "$RUNNER_TEMP/check.log"
-          exit $status
-        shell: bash
+        uses: ./.build/swift-ci-src
+        with:
+          arguments: ${{ matrix.id }}
+          config: ${{ inputs.config }}
       - name: Save the SwiftPM tree
         if: ${{ always() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          # Not the CLI's own checkout and build, which the setup action caches per commit.
+          # Not swift-ci's own checkout and build, which its action caches by the hash of its source.
           path: |
             .build
             !.build/swift-ci-src
@@ -257,17 +235,13 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: ${{ env.SWIFT_CI_SOURCE }}
+          path: .build/swift-ci-src
           persist-credentials: false
-      - uses: ./.build/swift-ci-src/actions/setup
-        with: { ref: "${{ job.workflow_sha }}" }
       - name: ${{ matrix.title }}
-        env:
-          CONFIG: ${{ inputs.config }}
-          CHECK: ${{ matrix.id }}
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          swift-ci run "$CHECK" --config "$CONFIG"
+        uses: ./.build/swift-ci-src
+        with:
+          arguments: ${{ matrix.id }}
+          config: ${{ inputs.config }}
 
   publish:
     needs: [plan, linux, macos]
@@ -285,10 +259,8 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: ${{ env.SWIFT_CI_SOURCE }}
+          path: .build/swift-ci-src
           persist-credentials: false
-      - uses: ./.build/swift-ci-src/actions/setup
-        with: { ref: "${{ job.workflow_sha }}" }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: swift-ci-archive-*
@@ -297,12 +269,13 @@ jobs:
       - name: The GitHub CLI and zip
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends gh zip > /dev/null
       - name: Publish ${{ github.ref_name }}
+        uses: ./.build/swift-ci-src
         env:
           GH_TOKEN: ${{ github.token }}
-          CONFIG: ${{ inputs.config }}
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          swift-ci publish --config "$CONFIG" --assets .build/swift-ci/assets --tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY"
+        with:
+          command: publish
+          arguments: --assets .build/swift-ci/assets --repository ${{ github.repository }}
+          config: ${{ inputs.config }}
 
   gate:
     # The one check a branch rule requires. Skipped jobs pass (nothing to check, or not a tag); failed or cancelled

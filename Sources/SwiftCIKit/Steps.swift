@@ -62,12 +62,17 @@ public enum Paths {
     public static let leakSuppressions = root + "/lsan-suppressions.txt"
 }
 
-/// What LeakSanitizer must not report on Linux: the XCTest runner `swift test` starts after swift-testing keeps its
-/// suites until exit (seen on swift:6.4.1-noble, 432 bytes in 7 objects, all from `XCTMainMisc`). A leak with a frame
-/// in the project's own code is still reported.
+/// What LeakSanitizer must not report on Linux, each seen on swift:6.4.1-noble and not the project's:
+/// - the XCTest runner `swift test` starts after swift-testing keeps its suites until exit (432 bytes in 7 objects,
+///   all from `XCTMainMisc`);
+/// - Foundation's `Process.run()` keeps one weak reference for the life of the process (32 bytes, once, however many
+///   processes run).
+/// A leak allocated anywhere else is still reported.
 public let leakSuppressions = """
     # swift-ci: the XCTest runner's objects live until exit.
     leak:libXCTest.so
+    # swift-ci: Foundation's Process keeps one weak reference for the life of the process.
+    leak:Foundation7ProcessC3run
 
     """
 

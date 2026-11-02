@@ -38,7 +38,10 @@ struct StepsTests {
                 "LSAN_OPTIONS=suppressions=.build/swift-ci/lsan-suppressions.txt swift test --skip-build --sanitize=address"
             ]
         )
-        #expect(leakSuppressions.contains("leak:libXCTest.so\n"))
+        #expect(
+            leakSuppressions.contains("leak:libXCTest.so\n")
+                && leakSuppressions.contains("leak:Foundation7ProcessC3run\n")
+        )
         #expect(
             try steps(CheckID.macOSThread) == [
                 "swift build --build-tests --sanitize=thread", "swift test --skip-build --sanitize=thread"
@@ -205,5 +208,22 @@ struct ToolLockTests {
             try ToolLock.decode(lock(#"{"url": "http://x", "sha256": "\#(String(repeating: "a", count: 64))"}"#))
         }
         #expect(throws: SwiftCIError.self) { try ToolLock.decode(lock(good, twice: true)) }
+    }
+}
+
+struct ShellTests {
+    @Test func `a command's output is read, a failure throws a readable summary, and quiet hides standard error`()
+        throws
+    {
+        #expect(try Shell.output(["printf", "%s", "a b"]) == "a b")
+        try Shell.run(["true"])
+        #expect {
+            try Shell.run(["false"])
+        } throws: { "\($0)" == "false exited with 1" }
+        let many = ["sh", "-c", "exit 3"] + (1 ... 9).map(String.init)
+        #expect {
+            try Shell.run(many)
+        } throws: { "\($0)".contains("… (4 more arguments) exited with 3") }
+        #expect(try Shell.output(["sh", "-c", "echo out; echo err >&2"], quiet: true) == "out\n")
     }
 }

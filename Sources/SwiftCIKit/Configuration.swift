@@ -130,8 +130,15 @@ public struct Configuration: Codable, Sendable, Equatable {
         /// A tool lock replacing the built-in one (``ToolLock``), relative to the root; `.ci/tools.lock.json` is used
         /// without being named.
         public var lock: String?
-        /// The Swift files swift-format checks (globs, relative to the root), before `exclude`.
-        public var include: [String] = ["**"]
+        /// The Swift files swift-format checks (globs, relative to the root), before `exclude`. Default: a package's
+        /// layout (`Package.swift`, `Sources`, `Tests`, `Plugins`, not benchmarks or research code); everything for
+        /// an Xcode project, whose layout is its own.
+        public var include: [String]?
+
+        /// `include`, or the default for `project`.
+        public func formatted(for project: SwiftCIKit.Project) -> [String] {
+            include ?? (project.isXcode ? ["**"] : ["Package.swift", "Sources/**", "Tests/**", "Plugins/**"])
+        }
         /// Files the formatters skip (fixtures written to be badly formatted, generated code).
         public var exclude: [String] = ["**/Fixtures/**", "**/Generated/**", ".build/**"]
 
@@ -303,6 +310,7 @@ enum Defaults {
         sample.project.linux = true
         sample.swift.xcode = ""
         sample.quality.lock = ""
+        sample.quality.include = []
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
         sample.commands = [Configuration.Command(id: "", run: "", after: "")]

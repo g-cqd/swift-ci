@@ -324,7 +324,7 @@ public struct StepPlanner: Sendable {
         for formatter in project.formatters {
             switch formatter {
                 case .swiftFormat:
-                    let include = configuration.quality.include.map(Glob.init)
+                    let include = configuration.quality.formatted(for: project).map(Glob.init)
                     let exclude = configuration.quality.exclude.map(Glob.init)
                     let files = swiftFiles.filter { file in
                         include.contains { $0.matches(file) } && !exclude.contains { $0.matches(file) }

@@ -119,7 +119,11 @@ struct StepsTests {
     @Test func `quality formats the Swift files outside the exclusions, then runs each analyzer with its baseline`()
         throws
     {
-        let files = ["Package.swift", "Sources/A/a.swift", "Tests/AT/Fixtures/bad.swift", "Sources/Generated/G.swift"]
+        let files = [
+            "Package.swift", "Sources/A/a.swift", "Tests/AT/Fixtures/bad.swift", "Sources/Generated/G.swift",
+            "Benchmarks/B.swift",
+            "development/probe.swift"
+        ]
         let lines = try steps(CheckID.quality, files: files, existing: [".dolly-baseline.json"])
         #expect(
             lines.first

@@ -127,7 +127,9 @@ func main() throws {
             let folder = root.appendingPathComponent(CIFolder.path + "/baselines")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             var executor = Executor(root: root, dryRun: dryRun)
-            try executor.run(try StepPlanner(configuration: configuration, project: project, lock: lock).baselines())
+            try executor.run(
+                try StepPlanner(configuration: configuration, project: project, lock: lock, root: root.path).baselines()
+            )
             print("wrote \(configuration.quality.analyzers.map(CIFolder.baseline(of:)).joined(separator: ", "))")
         case "detect":
             print(try json(try context().1))
@@ -174,7 +176,7 @@ func main() throws {
         case "steps", "run":
             guard let id = arguments.positional.first else { throw SwiftCIError("\(command) needs a check id") }
             let (configuration, project, lock) = try context()
-            let planner = StepPlanner(configuration: configuration, project: project, lock: lock)
+            let planner = StepPlanner(configuration: configuration, project: project, lock: lock, root: root.path)
             let files = id == CheckID.quality ? try Git.swiftFiles(root: root) : []
             let steps = try planner.steps(for: id, swiftFiles: files, fileExists: fileExists)
             var executor = Executor(
@@ -185,7 +187,7 @@ func main() throws {
             try executor.run(steps, keepGoing: id == CheckID.quality)
         case "local":
             let (configuration, project, lock) = try context()
-            let planner = StepPlanner(configuration: configuration, project: project, lock: lock)
+            let planner = StepPlanner(configuration: configuration, project: project, lock: lock, root: root.path)
             #if os(macOS)
                 let host = CheckID.macOSDebug
             #else

@@ -81,11 +81,20 @@ public struct StepPlanner: Sendable {
     public var configuration: Configuration
     public var project: Project
     public var lock: ToolLock
+    /// The project's absolute path, for what a child process reads from another directory (the leak suppressions);
+    /// empty keeps paths relative.
+    public var root: String
 
-    public init(configuration: Configuration, project: Project, lock: ToolLock) {
+    public init(configuration: Configuration, project: Project, lock: ToolLock, root: String = "") {
         self.configuration = configuration
         self.project = project
         self.lock = lock
+        self.root = root
+    }
+
+    /// `path` from the root, absolute when the root is known.
+    func absolute(_ path: String) -> String {
+        root.isEmpty ? path : (root.hasSuffix("/") ? root : root + "/") + path
     }
 
     /// The steps of check (or command) `id`.
@@ -119,7 +128,7 @@ public struct StepPlanner: Sendable {
                 return [.file(path: Paths.leakSuppressions, contents: leakSuppressions)]
                     + package(
                         .sanitizer("address"),
-                        extraEnvironment: ["LSAN_OPTIONS": "suppressions=\(Paths.leakSuppressions)"]
+                        extraEnvironment: ["LSAN_OPTIONS": "suppressions=\(absolute(Paths.leakSuppressions))"]
                     )
             case CheckID.linuxThread: return package(.sanitizer("thread"))
             case CheckID.consumer: return package(.debug, environment: [:])

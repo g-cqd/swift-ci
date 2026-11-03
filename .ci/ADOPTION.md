@@ -1,35 +1,90 @@
-# Family adoption status
+# Family adoption and verification
 
-Updated 2026-11-03. This is a verification ledger, not a claim that pending runs pass.
+Updated 2026-11-03. This ledger distinguishes completed CI from pending work.
+Always filter Actions queries to `ci.yml`: AemiJSON also runs **Cache cleanup**,
+whose success does not mean CI succeeded.
 
 ## Migrated
 
-- dolly, deadwood, fcheck, modeler, arcleak: thin pinned callers, `.ci/action.json`,
-  formatter/no-GCD/analyzer quality, serial tests, self-analysis on the warm Linux
-  debug tree, existing removal/leak/LSP oracles. Archives are tag-only; the heavy
-  sanitizer/release matrix also runs nightly.
-- AemiRegex: same graph with dev flags plus a flag-free consumer check. The Go
-  fixture generator and diff job is retained as an independent oracle. Local
-  quality passes without a new baseline. Its first run passed everything except
-  Linux LeakSanitizer: Foundation regex allocations and static test-case data
-  need investigation; no blanket suppression was added.
+All ten callers use `.ci/action.json` and pin swift-ci `1da0e40` (full SHA in each
+workflow). Each repository's `.ci/README.md`, where present, explains its special
+checks and exceptions. The CLI uses the same configuration locally and in CI.
 
-## Observed in Actions
+- dolly, deadwood, fcheck, modeler, arcleak: serial tests, warm-tree self-analysis,
+  no-GCD gate and the existing removal/leak/LSP oracles. Archives are tag-only.
+- analyzerkit: common library matrix. Cleanup now recognizes dead container
+  zombies, and inspects zombie state only for supervised survivors. Its shutdown
+  test accounts for both bounded grace phases rather than assuming one.
+- AemiRegex: dev/consumer split, independent Go fixture oracle, all 10,000 seeded
+  differential comparisons retained under ASan. A standalone Foundation-only
+  reproduction lives in its `.ci/probes`. Only its known Foundation regex stack
+  symbol is added to Linux leak suppressions; expected test payloads are now
+  scoped to the test body, not retained by parameter discovery.
+- AemiJSON: fixture preparation before test legs, flag-free consumer and core
+  portability check. Preserves path-gated macOS ASan+UBSan/TSan, API compatibility,
+  exact platform SDK/triples, fuzz crash artifacts, benchmark baseline controls
+  and Pages. Builds DocC once with warnings as errors and deploys that same site.
+  Platform/fuzz/benchmark runs are scheduled/manual. The fixture plugin uses its
+  sandbox-granted work directory even when `.build` points outside the package.
+- AemiProtobuf: common graph, coverage floors without rerunning the suite, warm
+  NIO checks, conformance, Lean/TLC/modeler, allocation thresholds, mutation and
+  docs. Heavy work stays weekly/manual with a matching 168-hour idle window.
+  Preserves its existing ASan-only depth-test exception. Bundle resource lookup
+  fixes the existing Linux doubled-Resources path bug.
+- aemi: serial 6.4.1/6.3.3 macOS debug matrix; primary release scheduled/manual.
+  Keeps the Linux product subset instead of invalid whole-package Linux tests.
+  All kernel/Embedded/Unicode/script oracles remain, and result waits for all.
+  Modern package paths are formatted; legacy unformatted trees and their test
+  suites remain explicit exceptions. No new legacy analyzer backlog is imposed.
+  The old reusable workflow remains for external callers, with `job.workflow_sha`
+  corrected. The process-table fixture now signals readiness after `setpgrp`,
+  eliminating a parent/child ordering race rather than sleeping around it.
 
-- swift-ci at 70f5a41: green, including root action smoke test.
-- All five tools: quality, Linux debug, Linux release, macOS debug pass at the
-  first migration revisions. modeler at 75d61c6 is fully green.
-- Linux ASan exposed two runner/runtime problems rather than justifying disabling
-  sanitizers: a relative suppression path inherited by child processes (fixed),
-  and a Foundation empty-file read leak (standalone reproduction in `probes/`).
-  The latest pins include the latter workaround; all five tool runs are now
-  fully green in Actions.
-- arcleak's deliberately cyclic deinit canary now breaks the cycle *after* proving
-  it survives, and verifies deallocation. Its three local canary tests pass.
+## Verified
+
+- swift-ci `1da0e40`: full Actions CI green; 72 tests in 20 suites passed locally
+  on macOS and Swift 6.4.1 Linux. Quality and actionlint pass.
+- All five tool migrations have completed fully green CI. On the refined pin,
+  dolly, fcheck and modeler have completed green; deadwood/arcleak are pending
+  remaining jobs, with Linux ASan already green.
+- AemiProtobuf: full migration CI and the refined-pin CI completed green.
+- AemiRegex `b36639e`: Linux ASan, debug, release, consumer, quality and Go golden
+  fixture pass. macOS job still pending at this update.
+- AemiJSON `86e3608`: Linux ASan, debug, consumer and quality pass. Remaining jobs
+  still pending. The earlier 840-byte report was expected test payloads; their
+  lifetime was corrected, not suppressed. A previous status report accidentally
+  cited Cache cleanup rather than CI; this entry corrects that distinction.
+- analyzerkit: zombie fix passes Linux debug/release/ASan in Actions. Latest
+  follow-ups await CI. Local bounded-process suites pass (23 tests).
+- aemi: initial migration completed green. A subsequent run found the fixture
+  readiness race; its fix passes the local ProcessTable suite plus 15 repeated
+  runs. Latest CI pending. Its independent kernel, Embedded, Unicode and script
+  oracles passed before that fixture failure.
+- Local library suites and all four new migration quality gates passed. Resource
+  lookup was also independently checked against a Linux Foundation bundle.
+
+## Tooling refinements from adoption
+
+- Absolute LSAN paths work when a test runs its tool from another directory.
+- Linux Foundation empty-file reads have a standalone reproduction and a narrow
+  stack-function suppression, not a general Data suppression. An unrelated
+  retain-cycle probe still triggers LeakSanitizer with the suppression enabled.
+- Arcleak's deliberate-cycle canary breaks the cycle after proving it and then
+  verifies deallocation.
+- `commands.before`, `commands.after`, sanitizer-specific test exclusions and
+  additional symbol-only Linux dependency leak suppressions are tested.
+- macOS action failures always print their captured log under `bash -e`; a
+  regression test executes the actual action script with a failing command.
+- Cache identities include config/manifests and commit, restore the matching
+  configuration first, and save only successful default-branch builds. New
+  source revisions no longer leave the tree frozen at the first manifest key.
+- Consumer checks keep the hosted-runner 250 ms compiler budget without enabling
+  any dev flags. Local defaults remain unchanged.
 
 ## Accepted existing analyzer backlog
 
-These are adoption baselines, not fixes or proof that findings are false:
+These baselines are recorded adoption boundaries, not fixes or claims of false
+positives. Only new fingerprints fail; remove entries as the backlog is fixed.
 
 | Repository | Analyzer | Fingerprints |
 | --- | --- | ---: |
@@ -38,41 +93,13 @@ These are adoption baselines, not fixes or proof that findings are false:
 | fcheck | dolly | 12 |
 | modeler | dolly | 25 |
 | arcleak | dolly | 57 |
-
-## Remaining libraries migrated (first Actions runs pending)
-
-- analyzerkit `f4aff0a`: pinned caller, local tests/quality pass. The clone backlog
-  is explicitly accepted at adoption: 150 dolly fingerprints (48 warnings,
-  102 notes), committed under `.ci/baselines`, not silently disabled.
-- AemiJSON `6873e79`: fixture preparation before test legs, dev/consumer split,
-  Foundation-free core check on the consumer tree. Preserves risk-path ASan+UBSan
-  and TSan, API checks, exact SDK/triple platform builds, fuzz crash artifacts,
-  benchmark baseline controls and Pages. Builds DocC once with link validation
-  and deploys that same site. Platform/fuzz/benchmark jobs are scheduled/manual.
-- AemiProtobuf (initial `9322505`, cadence `e81fdff`): common graph plus coverage floors and NIO on the warm
-  macOS debug tree; no second coverage test run. Retains conformance, model
-  proofs, allocation thresholds and mutation on weekly schedule/dispatch. Preserves
-  the existing ASan-only depth-test exception. Fixes Linux fixture lookup using
-  Bundle resource lookup (resourceURL already includes Resources on Linux).
-  Local tests/quality pass; a standalone Linux probe verifies the resource API.
-- aemi `cd455e6`: cached Linux product subset, never blanket Linux tests; serial
-  macOS debug matrix 6.4.1/6.3.3, primary release nightly/manual. All kernel,
-  Embedded, Unicode and script oracles retained, and result now waits for every
-  required oracle. Formats modern package paths, explicitly excludes the legacy
-  unformatted trees, and does not impose a new legacy analyzer backlog gate.
-  Fixes the old shared workflow's invalid SHA context for external consumers.
-
-Each repository's `.ci/README.md` records its cadence and exceptions. All four
-configurations validate, plan for push/nightly/dispatch, and pass local quality;
-actionlint passes (with only its known unsupported workflow context suppressed).
+| analyzerkit | dolly | 150 (48 warnings, 102 notes) |
 
 ## Not verified
 
-Tag publishing, dolly's model-inclusive archive, nightly/dispatch heavy matrices,
-Apple platform builds and docs deployment have not been exercised by migration
-pushes. No timing improvement is claimed before comparable completed runs exist.
-
-The first JSON consumer build exposed loss of the hosted-runner timing budget
-when dev flags are removed (109 ms versus the local 100 ms default). The reusable
-workflow now exports the same 250 ms CI budget for consumer checks without
-turning any dev flags on. Local compiler defaults remain unchanged.
+Tag publishing, dolly's model-inclusive archive, full scheduled/manual heavy
+matrices, Apple platform builds and Pages deployment have not been exercised by
+migration pushes. No timing improvement is claimed before comparable completed
+runs exist. Local dependency-heavy Linux validation also hit a container/SwiftPM
+filesystem failure; those jobs were stopped and their VMs cleaned up, not counted
+as passing tests. Dependency-free swift-ci Linux tests completed successfully.

@@ -73,6 +73,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var environment: [String: String] = [:]
         /// Run tests in parallel.
         public var parallel = true
+        /// Test-name patterns skipped only under a named sanitizer (for example an ASan stack-depth limit).
+        public var sanitizerSkips: [String: [String]] = [:]
 
         public init() {}
 
@@ -265,6 +267,9 @@ extension Configuration {
             guard !configuration.swift.versions.isEmpty else {
                 throw SwiftCIError("\(file): swift.versions needs at least one version")
             }
+            for sanitizer in configuration.swift.sanitizerSkips.keys where !["address", "thread"].contains(sanitizer) {
+                throw SwiftCIError("\(file): swift.sanitizerSkips: unknown sanitizer '\(sanitizer)'")
+            }
             return configuration
         } catch let error as SwiftCIError {
             throw error
@@ -343,7 +348,7 @@ enum Defaults {
 /// every optional set, so the accepted keys are always exactly the model's.
 enum StrictKeys {
     /// Maps whose keys are the user's.
-    static let freeKeys: Set<String> = ["checks", "swift.environment", "swift.linuxImages"]
+    static let freeKeys: Set<String> = ["checks", "swift.environment", "swift.linuxImages", "swift.sanitizerSkips"]
 
     static func check(_ value: Any, against sample: Any, path: String, file: String) throws {
         if freeKeys.contains(path) { return }

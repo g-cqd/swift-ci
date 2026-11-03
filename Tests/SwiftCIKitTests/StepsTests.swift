@@ -232,3 +232,20 @@ struct ShellTests {
         #expect(try Shell.output(["sh", "-c", "echo out; echo err >&2"], quiet: true) == "out\n")
     }
 }
+
+struct SanitizerSkipTests {
+    @Test func `a stack depth exception applies only to its named sanitizer`() throws {
+        let config = try configuration(
+            #"{"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}"#
+        )
+        let planner = StepPlanner(configuration: config, project: package, lock: .builtIn)
+        guard case .run(let test) = try planner.steps(for: CheckID.linuxAddress).last else {
+            Issue.record("missing test step")
+            return
+        }
+        #expect(test.arguments.suffix(2) == ["--skip", "deeply nested input is refused at the limit"])
+        for id in [CheckID.linuxDebug, CheckID.linuxRelease, CheckID.linuxThread] {
+            #expect(!commandLines(try planner.steps(for: id)).joined().contains("--skip "))
+        }
+    }
+}

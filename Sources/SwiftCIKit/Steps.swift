@@ -188,6 +188,9 @@ public struct StepPlanner: Sendable {
                 label = "\(sanitizer) sanitizer"
                 build += ["--sanitize=\(sanitizer)"]
                 test += ["--sanitize=\(sanitizer)"]
+                for pattern in configuration.swift.sanitizerSkips[sanitizer] ?? [] {
+                    test += ["--skip", pattern]
+                }
         }
         if coverage {
             build += ["--enable-code-coverage"]

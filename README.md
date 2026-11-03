@@ -210,3 +210,12 @@ have both `before` and `after`, or attach to another attached command. Shell
 commands do not inherit `swift.environment`; write any required variables in
 `run` explicitly. See [.ci/ADOPTION.md](.ci/ADOPTION.md) for the family migration's
 verification ledger and remaining gaps.
+
+`swift.sanitizerSkips` maps `address` or `thread` to test-name patterns passed as
+`--skip` only for that sanitizer. Use this for documented instrumentation-only
+constraints, not ordinary failures; the default debug/release tests still run
+those cases. For example, AemiProtobuf's existing ASan recursion exception:
+
+```json
+{"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}
+```

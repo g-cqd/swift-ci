@@ -28,6 +28,9 @@ public struct Configuration: Codable, Sendable, Equatable {
     public var documentation: Documentation?
     /// Project-specific steps, each a job of its own.
     public var commands: [Command] = []
+    /// Skip a scheduled run when the newest commit is older than this many hours; nil disables the idle skip.
+    /// Match a weekly cron with 168 rather than the default daily window of 24.
+    public var scheduledMaxCommitAgeHours: Double? = 24
     /// Paths a change can touch and still need no check (for push, pull-request and merge-queue triggers).
     public var documentationOnlyPaths: [String] = ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
 
@@ -266,6 +269,9 @@ extension Configuration {
                 .decode(Configuration.self, from: try JSONSerialization.data(withJSONObject: merged))
             guard !configuration.swift.versions.isEmpty else {
                 throw SwiftCIError("\(file): swift.versions needs at least one version")
+            }
+            if let age = configuration.scheduledMaxCommitAgeHours, age < 0 {
+                throw SwiftCIError("\(file): scheduledMaxCommitAgeHours must be nonnegative or null")
             }
             for sanitizer in configuration.swift.sanitizerSkips.keys where !["address", "thread"].contains(sanitizer) {
                 throw SwiftCIError("\(file): swift.sanitizerSkips: unknown sanitizer '\(sanitizer)'")

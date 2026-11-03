@@ -126,8 +126,10 @@ public struct Planner: Sendable {
                 return plan
             }
         }
-        if event.trigger == .nightly, let hours = hoursSinceLastCommit, hours > 24 {
-            plan.skipped = "no commit since the previous nightly run (newest is \(Int(hours)) h old)"
+        if event.trigger == .nightly, let hours = hoursSinceLastCommit,
+            let maximum = configuration.scheduledMaxCommitAgeHours, hours > maximum
+        {
+            plan.skipped = "no recent commit for the scheduled run (newest is \(Int(hours)) h old)"
             return plan
         }
 

@@ -219,3 +219,8 @@ those cases. For example, AemiProtobuf's existing ASan recursion exception:
 ```json
 {"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}
 ```
+
+For a weekly caller cron, set `"scheduledMaxCommitAgeHours": 168` so a commit
+from earlier in the week still receives the scheduled checks. The default
+24-hour idle window suits a daily cron; `null` disables the idle skip. This is
+an age-based optimization, not a stored last-success checkpoint.

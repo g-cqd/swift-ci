@@ -21,6 +21,17 @@ struct PlannerTests {
 
     func ids(_ jobs: [PlannedJob]) -> [String] { jobs.map(\.id) }
 
+    @Test func `weekly and unconditional schedules have a configurable idle window`() throws {
+        let weekly = #"{"scheduledMaxCommitAgeHours":168}"#
+        #expect(try plan(weekly, .nightly, hours: 120).skipped == nil)
+        #expect(try plan(weekly, .nightly, hours: 168).skipped == nil)
+        #expect(try plan(weekly, .nightly, hours: 169).skipped != nil)
+        #expect(try plan(#"{"scheduledMaxCommitAgeHours":null}"#, .nightly, hours: 1000).skipped == nil)
+        #expect(throws: SwiftCIError.self) {
+            try configuration(#"{"scheduledMaxCommitAgeHours":-1}"#)
+        }
+    }
+
     @Test func `a push checks quality and Linux on every change, and macOS debug once`() throws {
         let plan = try plan(.push)
         #expect(ids(plan.linux) == [CheckID.quality, CheckID.linuxDebug, CheckID.linuxRelease, CheckID.linuxAddress])
@@ -42,7 +53,7 @@ struct PlannerTests {
         #expect(ids(nightly.macOS) == [CheckID.macOSRelease, CheckID.macOSAddress, CheckID.macOSThread])
         let idle = try plan(.nightly, files: nil, hours: 30)
         #expect(idle.linux.isEmpty && idle.macOS.isEmpty)
-        #expect(idle.skipped?.contains("no commit since the previous nightly") == true)
+        #expect(idle.skipped?.contains("no recent commit for the scheduled") == true)
     }
 
     @Test func `a tag runs everything, archives the executables and publishes`() throws {

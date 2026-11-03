@@ -208,3 +208,39 @@ struct AfterTests {
         }
     }
 }
+
+struct BeforeTests {
+    @Test func `fixture preparation runs before each selected check without creating a job`() throws {
+        let config = try configuration(
+            #"""
+            {"commands": [
+              {"id": "fixtures", "run": "fetch-fixtures", "before": ["linux-debug", "consumer", "macos-debug"]},
+              {"id": "verify", "run": "verify-fixtures", "before": ["linux-debug"]}
+            ]}
+            """#
+        )
+        let steps = StepPlanner(configuration: config, project: package, lock: .builtIn)
+        for id in [CheckID.linuxDebug, CheckID.consumer, CheckID.macOSDebug] {
+            #expect(commandLines(try steps.steps(for: id)).first == "sh: fetch-fixtures")
+        }
+        #expect(commandLines(try steps.steps(for: CheckID.linuxDebug))[1] == "sh: verify-fixtures")
+        #expect(commandLines(try steps.steps(for: CheckID.linuxRelease)).first != "sh: fetch-fixtures")
+        let plan = try Planner(configuration: config, project: package)
+            .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        #expect(!(plan.linux + plan.macOS).contains { ["fixtures", "verify"].contains($0.id) })
+    }
+
+    @Test(arguments: [
+        #"[{"id":"a","run":"x","before":["missing"]}]"#,
+        #"[{"id":"a","run":"x","before":["a"]}]"#,
+        #"[{"id":"a","run":"x","before":["quality"],"after":"linux-debug"}]"#,
+        #"[{"id":"a","run":"x","before":["quality"]},{"id":"b","run":"x","after":"a"}]"#,
+        #"[{"id":"a","run":"x","after":"quality"},{"id":"b","run":"x","before":["a"]}]"#
+    ])
+    func `preparation rejects unknown hosts self references mixed directions and hook chains`(_ commands: String) {
+        #expect(throws: SwiftCIError.self) {
+            _ = try Planner(configuration: configuration("{\"commands\":\(commands)}"), project: package)
+                .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        }
+    }
+}

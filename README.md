@@ -187,3 +187,26 @@ swift package --disable-sandbox swift-ci local   # from a package that depends o
 New; swift-ci's own CI runs on it. Covered: Swift packages and Xcode projects and workspaces (build, test, sanitizers, platforms, documentation),
 quality, and releases of a package's executables. Not yet: archiving or shipping an app (App Store, TestFlight;
 use `commands` with fastlane meanwhile), test-result reports (xcresult summaries, pull request comments).
+
+### Preparing fixtures before checks
+
+A command can prepare several checks on their own runners, before any build or
+skip-build test step:
+
+```json
+{
+  "commands": [{
+    "id": "fixtures",
+    "run": "swift package --allow-network-connections all --allow-writing-to-package-directory fetch-fixtures",
+    "before": ["linux-debug", "linux-release", "linux-address", "consumer", "macos-debug"]
+  }]
+}
+```
+
+Like `after`, `before` attaches to the named jobs: it adds no standalone job and
+inherits their cadence and runner. Hooks execute in configuration order. A
+preparation failure stops a normal test job before its build. A command cannot
+have both `before` and `after`, or attach to another attached command. Shell
+commands do not inherit `swift.environment`; write any required variables in
+`run` explicitly. See [.ci/ADOPTION.md](.ci/ADOPTION.md) for the family migration's
+verification ledger and remaining gaps.

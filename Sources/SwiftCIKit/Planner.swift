@@ -19,6 +19,22 @@ public enum CheckID {
     /// The release archives of `release.executables`, one per OS.
     public static let archiveLinux = "archive-linux"
     public static let archiveMacOS = "archive-macos"
+
+    /// Stable CLI/configuration IDs are separate from the human-readable Actions vocabulary.
+    public static func title(for id: String) -> String {
+        switch id {
+            case quality: "Quality · Format & Analyze"
+            case linuxDebug, macOSDebug: "Tests · Debug"
+            case linuxRelease, macOSRelease: "Tests · Release"
+            case linuxAddress, macOSAddress: "Sanitizers · Address"
+            case linuxThread, macOSThread: "Sanitizers · Thread"
+            case consumer: "Compatibility · Consumer"
+            case platforms: "Compatibility · Apple Platforms"
+            case documentation: "Documentation · Build & Validate"
+            case archiveLinux, archiveMacOS: "Packaging · Executables"
+            default: id
+        }
+    }
 }
 
 /// A built-in check: where it runs, when by default, and for which projects.
@@ -177,10 +193,13 @@ public struct Planner: Sendable {
                         version = "xcode"
                     }
             }
-            let suffix = version == "xcode" ? " · Xcode toolchain" : " · Swift \(version)"
+            let suffix =
+                " · \(os.rawValue == "linux" ? "Linux" : "macOS")"
+                + (version == "xcode" ? " · Xcode toolchain" : " · Swift \(version)")
+            let title = configuration.commands.first(where: { $0.id == id })?.title ?? CheckID.title(for: id)
             return PlannedJob(
                 id: id,
-                title: id + suffix,
+                title: title + suffix,
                 os: os,
                 runner: os == .linux ? configuration.runners.linux : configuration.runners.macOS,
                 container: os == .linux ? swift.image(for: version) : "",

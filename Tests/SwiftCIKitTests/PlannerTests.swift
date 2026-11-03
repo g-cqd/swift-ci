@@ -132,3 +132,49 @@ struct PlannerTests {
         }
     }
 }
+
+struct JobNamingTests {
+    @Test func `built in job labels show purpose platform and toolchain without changing identity`() throws {
+        let plan = try Planner(configuration: configuration("{}"), project: package)
+            .plan(event: Event(trigger: .dispatch, ref: ""), changedFiles: nil)
+        let jobs = plan.linux + plan.macOS
+        #expect(jobs.first { $0.id == CheckID.linuxDebug }?.title == "Tests · Debug · Linux · Swift 6.4.1")
+        #expect(jobs.first { $0.id == CheckID.macOSDebug }?.title == "Tests · Debug · macOS · Swift 6.4.1")
+        #expect(jobs.first { $0.id == CheckID.linuxAddress }?.title == "Sanitizers · Address · Linux · Swift 6.4.1")
+        #expect(jobs.first { $0.id == CheckID.linuxDebug }?.cache == "swift-ci-linux-linux-debug-6.4.1")
+        #expect(CheckID.title(for: "custom") == "custom")
+    }
+
+    @Test func `custom commands have a display title independent of their stable id`() throws {
+        let config = try configuration(
+            #"{"commands":[{"id":"smoke","title":"Integration · Mutation Smoke","run":"true","os":"macOS"}]}"#
+        )
+        let plan = try Planner(configuration: config, project: package)
+            .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        #expect(plan.macOS.first { $0.id == "smoke" }?.title == "Integration · Mutation Smoke · macOS · Swift 6.4.1")
+    }
+}
+
+extension JobNamingTests {
+    @Test func `all built in checks have labels distinct from their configuration IDs`() {
+        let ids = [
+            CheckID.quality, CheckID.linuxDebug, CheckID.linuxRelease, CheckID.linuxAddress,
+            CheckID.linuxThread, CheckID.macOSDebug, CheckID.macOSRelease, CheckID.macOSAddress,
+            CheckID.macOSThread, CheckID.consumer, CheckID.platforms, CheckID.documentation,
+            CheckID.archiveLinux, CheckID.archiveMacOS
+        ]
+        for id in ids { #expect(CheckID.title(for: id) != id) }
+    }
+
+    @Test func `attached command labels apply to steps without creating standalone jobs`() throws {
+        let config = try configuration(
+            #"{"commands":[{"id":"fixtures","title":"Fixtures · Fetch Corpora","run":"fetch","before":["linux-debug"]}]}"#
+        )
+        let steps = try StepPlanner(configuration: config, project: package, lock: .builtIn)
+            .steps(for: CheckID.linuxDebug)
+        #expect(steps.first?.title == "Fixtures · Fetch Corpora")
+        let plan = try Planner(configuration: config, project: package)
+            .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        #expect(!(plan.linux + plan.macOS).contains { $0.id == "fixtures" })
+    }
+}

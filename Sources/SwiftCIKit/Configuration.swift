@@ -199,6 +199,8 @@ public struct Configuration: Codable, Sendable, Equatable {
 
     public struct Command: Codable, Sendable, Equatable {
         public var id: String
+        /// Human-readable Actions label; id remains the stable CLI/configuration key.
+        public var title: String?
         /// A shell command, run from the root.
         public var run: String
         public var os: OS = .linux
@@ -220,9 +222,11 @@ public struct Configuration: Codable, Sendable, Equatable {
             cadence: [Trigger] = Array(Trigger.everyChange).sorted(),
             archives: Bool = false,
             after: String? = nil,
-            before: [String] = []
+            before: [String] = [],
+            title: String? = nil
         ) {
             self.id = id
+            self.title = title
             self.run = run
             self.os = os
             self.cadence = cadence
@@ -338,7 +342,7 @@ enum Defaults {
         sample.quality.include = []
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
-        sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [])]
+        sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [], title: "")]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]
         return sample
     }

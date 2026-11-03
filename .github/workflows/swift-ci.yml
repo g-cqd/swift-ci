@@ -1,4 +1,4 @@
-name: swift-ci
+name: Swift CI
 
 # The reusable workflow: one graph for a Swift package or an Xcode project, configured by its `.ci/action.json`.
 #
@@ -62,6 +62,7 @@ concurrency:
 
 jobs:
   plan:
+    name: Plan
     runs-on: ${{ fromJSON(inputs.plan-runner) }}
     container: ${{ inputs.plan-image }}
     timeout-minutes: 15
@@ -76,16 +77,18 @@ jobs:
     steps:
       # Credentials kept (read-only token): the CLI fetches the commit a change is compared with, in a private
       # repository too.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 2 }
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           path: .build/swift-ci-src
           persist-credentials: false
       # The event, the ref and the commit the change is compared with come from the run.
-      - name: Plan
+      - name: Plan · Select Checks
         id: plan
         uses: ./.build/swift-ci-src
         with:
@@ -104,9 +107,10 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.linux) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: Cache key
+      - name: Cache · Compute Identity
         id: key
         env:
           PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
@@ -114,7 +118,7 @@ jobs:
         run: |
           echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
           echo "prefix=$PREFIX-" >> "$GITHUB_OUTPUT"
-      - name: Restore the SwiftPM tree
+      - name: Cache · Restore SwiftPM
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -125,7 +129,8 @@ jobs:
           restore-keys: |
             ${{ steps.key.outputs.prefix }}
             ${{ matrix.cache }}-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -136,7 +141,7 @@ jobs:
         with:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
-      - name: Save the SwiftPM tree
+      - name: Cache · Save SwiftPM
         if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -145,7 +150,7 @@ jobs:
             .build
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
-      - name: Upload the archives
+      - name: Artifacts · Upload Archives
         if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -165,9 +170,10 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.macos) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: Select Xcode ${{ matrix.xcode }}
+      - name: Setup · Select Xcode ${{ matrix.xcode }}
         if: ${{ matrix.xcode != '' }}
         env:
           XCODE: ${{ matrix.xcode }}
@@ -175,12 +181,12 @@ jobs:
           case "$XCODE" in */*) app="$XCODE" ;; *) app="/Applications/Xcode_$XCODE.app" ;; esac
           sudo xcode-select -s "$app"
           xcodebuild -version
-      - name: Install Swift ${{ matrix.swift }}
+      - name: Setup · Install Swift ${{ matrix.swift }}
         if: ${{ matrix.installSwift }}
         uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
         with:
           swift-version: ${{ matrix.swift }}
-      - name: Cache key
+      - name: Cache · Compute Identity
         id: key
         env:
           PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
@@ -188,7 +194,7 @@ jobs:
         run: |
           echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
           echo "prefix=$PREFIX-" >> "$GITHUB_OUTPUT"
-      - name: Restore the SwiftPM tree
+      - name: Cache · Restore SwiftPM
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -199,7 +205,8 @@ jobs:
           restore-keys: |
             ${{ steps.key.outputs.prefix }}
             ${{ matrix.cache }}-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -210,7 +217,7 @@ jobs:
         with:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
-      - name: Save the SwiftPM tree
+      - name: Cache · Save SwiftPM
         if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -219,7 +226,7 @@ jobs:
             .build
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
-      - name: Upload the archives
+      - name: Artifacts · Upload Archives
         if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -227,7 +234,7 @@ jobs:
           path: .build/swift-ci/dist/*.tar.gz*
           if-no-files-found: error
           retention-days: 7
-      - name: Upload the result bundles
+      - name: Artifacts · Upload Test Results
         if: ${{ failure() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -249,9 +256,11 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.advisory) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -264,6 +273,7 @@ jobs:
           config: ${{ inputs.config }}
 
   publish:
+    name: Release
     needs: [plan, linux, macos]
     # Every archive job passed (a project may archive on one OS only, so a skipped one is fine).
     if: ${{ !cancelled() && needs.plan.outputs.publish == 'true' && !contains(needs.*.result, 'failure') }}
@@ -273,9 +283,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -286,7 +298,7 @@ jobs:
           pattern: swift-ci-archive-*
           merge-multiple: true
           path: .build/swift-ci/assets
-      - name: The GitHub CLI and zip
+      - name: Setup · Install Release Tools
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends gh zip > /dev/null
       - name: Publish ${{ github.ref_name }}
         uses: ./.build/swift-ci-src
@@ -298,6 +310,7 @@ jobs:
           config: ${{ inputs.config }}
 
   gate:
+    name: Gate
     # The one check a branch rule requires. Skipped jobs pass (nothing to check, or not a tag); failed or cancelled
     # ones do not. The advisory job is not waited for.
     needs: [plan, linux, macos, publish]
@@ -305,7 +318,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.plan-runner) }}
     timeout-minutes: 2
     steps:
-      - name: Every job passed or was skipped
+      - name: Gate · Verify Required Jobs
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |

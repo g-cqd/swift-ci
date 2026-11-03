@@ -1,4 +1,4 @@
-name: swift-ci
+name: Swift CI
 description: >-
   Plan and run the CI checks of a Swift package or an Xcode project, configured by .ci/action.json: formatters,
   linters and the g-cqd analyzers from pinned releases, tests built once, sanitizers, platforms, documentation,
@@ -70,7 +70,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: swift-ci's source
+    - name: Setup · Identify Swift CI Source
       id: source
       shell: bash
       env:
@@ -82,13 +82,13 @@ runs:
         if command -v sha256sum > /dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
         hash="$(find Package.swift Sources -type f | LC_ALL=C sort | xargs "${sum[@]}" | "${sum[@]}" | cut -c1-16)"
         echo "key=swift-ci-cli-${RUNNER_OS}-${RUNNER_ARCH}-$hash" >> "$GITHUB_OUTPUT"
-    - name: Restore the swift-ci build
+    - name: Cache · Restore Swift CI
       id: cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.action_path }}/.build
         key: ${{ steps.source.outputs.key }}
-    - name: Build swift-ci
+    - name: Setup · Build Swift CI
       shell: bash
       env:
         SOURCE: ${{ github.action_path }}
@@ -97,13 +97,13 @@ runs:
         swift build -c release --package-path "$SOURCE" --product swift-ci > "$RUNNER_TEMP/swift-ci-build.log" 2>&1 \
           || { cat "$RUNNER_TEMP/swift-ci-build.log"; exit 1; }
         echo "$(swift build -c release --package-path "$SOURCE" --show-bin-path)" >> "$GITHUB_PATH"
-    - name: Save the swift-ci build
+    - name: Cache · Save Swift CI
       if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.action_path }}/.build
         key: ${{ steps.source.outputs.key }}
-    - name: swift-ci ${{ inputs.command }} ${{ inputs.arguments }}
+    - name: Run · ${{ inputs.command }} ${{ inputs.arguments }}
       id: swift-ci
       shell: bash
       working-directory: ${{ inputs.working-directory }}

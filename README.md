@@ -243,3 +243,23 @@ bundled Swift libraries are discoverable after extraction. The root-action CI
 smoke runs the real archive command in a disposable container, verifies its
 checksum, hides the installed Swift runtime and executes the extracted binary.
 Runtime copy errors are fatal rather than silently producing incomplete bundles.
+
+### Naming convention
+
+Workflows use `CI`; the reusable workflow and action use `Swift CI`. Caller jobs
+are labelled `Checks`. Shared jobs read `Plan`, `Gate`, `Release`, or
+`<Purpose> · <Mode> · <Platform> · <Toolchain>` (for example,
+`Tests · Debug · Linux · Swift 6.4.1`). Advisory jobs retain an explicit marker.
+
+Specialized jobs use the same purpose vocabulary: `Compatibility`, `Integration`,
+`Generated Sources`, `Kernels`, `Conformance`, `Verification`, `Performance`,
+`Mutation`, `Fuzzing`, `Coverage`, and `Documentation`. Steps use verb-led labels
+such as `Setup · Install Swift`, `Cache · Restore SwiftPM`, and
+`Artifacts · Upload Archives`. Custom commands may set `title` for this label;
+`id` remains their stable CLI/configuration identity.
+
+Display labels are separate from job IDs, CLI IDs, cache namespaces and artifact
+names. Renaming display labels **does change Actions check-run names**: repositories
+with required status contexts must update those contexts before adopting a naming
+revision. Use the shared `Gate` or repository aggregate gate rather than requiring
+every matrix-expanded label. Names alone do not change check coverage or cadence.

@@ -224,3 +224,16 @@ For a weekly caller cron, set `"scheduledMaxCommitAgeHours": 168` so a commit
 from earlier in the week still receives the scheduled checks. The default
 24-hour idle window suits a daily cron; `null` disables the idle skip. This is
 an age-based optimization, not a stored last-success checkpoint.
+
+Build caches use the check, OS, Swift version, manifests/resolution, CI configuration
+and commit as their exact identity. Each new successful default-branch revision
+refreshes the immutable cache; restores prefer a matching manifest/configuration
+before falling back to the same check/toolchain. Failed builds do not replace the
+last successful tree. This avoids freezing the build tree at the first commit
+that used a given manifest.
+
+For independently reproduced Linux dependency/runtime leaks,
+`swift.linuxLeakSuppressions` accepts additional stack **symbols**, not wildcards
+or suppression-file syntax. Keep a standalone reproduction and removal condition
+in the consuming repository. These additions apply only to Linux ASan, alongside
+the documented runtime defaults; all other leak reports remain enabled.

@@ -132,7 +132,13 @@ public struct StepPlanner: Sendable {
             case CheckID.linuxDebug: return package(.debug)
             case CheckID.linuxRelease: return package(.release)
             case CheckID.linuxAddress:
-                return [.file(path: Paths.leakSuppressions, contents: leakSuppressions)]
+                return [
+                    .file(
+                        path: Paths.leakSuppressions,
+                        contents: leakSuppressions
+                            + configuration.swift.linuxLeakSuppressions.map { "leak:\($0)\n" }.joined()
+                    )
+                ]
                     + package(
                         .sanitizer("address"),
                         extraEnvironment: ["LSAN_OPTIONS": "suppressions=\(absolute(Paths.leakSuppressions))"]

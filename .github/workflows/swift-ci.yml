@@ -108,7 +108,12 @@ jobs:
         with: { persist-credentials: false }
       - name: Cache key
         id: key
-        run: echo "key=${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved') }}" >> "$GITHUB_OUTPUT"
+        env:
+          PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
+          REVISION: ${{ github.sha }}
+        run: |
+          echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
+          echo "prefix=$PREFIX-" >> "$GITHUB_OUTPUT"
       - name: Restore the SwiftPM tree
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -117,7 +122,9 @@ jobs:
             .build
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
-          restore-keys: ${{ matrix.cache }}-
+          restore-keys: |
+            ${{ steps.key.outputs.prefix }}
+            ${{ matrix.cache }}-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
@@ -130,7 +137,7 @@ jobs:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
       - name: Save the SwiftPM tree
-        if: ${{ always() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Not swift-ci's own checkout and build, which its action caches by the hash of its source.
@@ -175,7 +182,12 @@ jobs:
           swift-version: ${{ matrix.swift }}
       - name: Cache key
         id: key
-        run: echo "key=${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved') }}" >> "$GITHUB_OUTPUT"
+        env:
+          PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
+          REVISION: ${{ github.sha }}
+        run: |
+          echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
+          echo "prefix=$PREFIX-" >> "$GITHUB_OUTPUT"
       - name: Restore the SwiftPM tree
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -184,7 +196,9 @@ jobs:
             .build
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
-          restore-keys: ${{ matrix.cache }}-
+          restore-keys: |
+            ${{ steps.key.outputs.prefix }}
+            ${{ matrix.cache }}-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
@@ -197,7 +211,7 @@ jobs:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
       - name: Save the SwiftPM tree
-        if: ${{ always() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Not swift-ci's own checkout and build, which its action caches by the hash of its source.

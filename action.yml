@@ -117,8 +117,12 @@ runs:
         read -r -a words <<< "$ARGUMENTS"
         if [ "$RUNNER_OS" = macOS ]; then
           # Into a file: an orphaned child then holds a file, not the runner's log pipe, and cannot wedge the job.
-          swift-ci "$COMMAND" "${words[@]}" --config "$CONFIG" > "$RUNNER_TEMP/swift-ci.log" 2>&1 < /dev/null
-          status=$?
+          # The runner starts bash with -e. Capture failure in an if so the diagnostic log is always printed.
+          if swift-ci "$COMMAND" "${words[@]}" --config "$CONFIG" > "$RUNNER_TEMP/swift-ci.log" 2>&1 < /dev/null; then
+            status=0
+          else
+            status=$?
+          fi
           cat "$RUNNER_TEMP/swift-ci.log"
           exit $status
         fi

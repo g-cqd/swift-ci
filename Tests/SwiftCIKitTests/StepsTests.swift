@@ -249,3 +249,55 @@ struct SanitizerSkipTests {
         }
     }
 }
+
+struct LinuxLeakSuppressionTests {
+    @Test func `a reproduced dependency leak can add a symbol without disabling other leak reports`() throws {
+        let config = try configuration(#"{"swift":{"linuxLeakSuppressions":["_CFRegularExpressionCreate"]}}"#)
+        let planner = StepPlanner(configuration: config, project: package, lock: .builtIn)
+        guard case .file(_, let contents) = try planner.steps(for: CheckID.linuxAddress).first else {
+            Issue.record("missing suppressions file")
+            return
+        }
+        #expect(contents == leakSuppressions + "leak:_CFRegularExpressionCreate\n")
+        #expect(!commandLines(try planner.steps(for: CheckID.macOSAddress)).joined().contains("LSAN_OPTIONS"))
+    }
+
+    @Test(arguments: ["*", "", "symbol\nleak:*", "leak:symbol", "symbol/path"])
+    func `only symbols are accepted not suppression file syntax`(_ symbol: String) throws {
+        let data = try JSONSerialization.data(withJSONObject: ["swift": ["linuxLeakSuppressions": [symbol]]])
+        #expect(throws: SwiftCIError.self) { try Configuration.decode(data) }
+    }
+}
+
+struct ActionFailureLogTests {
+    @Test func `the macOS action prints a failing command log even under the runner errexit shell`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let action = try String(contentsOf: root.appendingPathComponent("action.yml"), encoding: .utf8)
+        let start = try #require(action.range(of: "        set -uo pipefail\n"))
+        let script = action[start.lowerBound...].split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0.dropFirst(8)) }.joined(separator: "\n")
+        let sandbox = try Sandbox()
+        let output = sandbox.root.appendingPathComponent("output")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [
+            "-e", "-o", "pipefail", "-c", "swift-ci() { echo expected-build-diagnostic; return 17; };\n" + script
+        ]
+        process.currentDirectoryURL = sandbox.root
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "RUNNER_OS": "macOS", "RUNNER_TEMP": sandbox.root.path, "COMMAND": "run", "ARGUMENTS": "macos-debug",
+            "CONFIG": ".ci/action.json",
+            "GIT_CONFIG_GLOBAL": sandbox.root.appendingPathComponent("gitconfig").path
+        ]) { $1 }
+        _ = FileManager.default.createFile(atPath: output.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: output)
+        defer { try? handle.close() }
+        process.standardOutput = handle
+        process.standardError = handle
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 17)
+        #expect(try String(contentsOf: output, encoding: .utf8).contains("expected-build-diagnostic"))
+    }
+}

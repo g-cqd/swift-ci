@@ -78,6 +78,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var parallel = true
         /// Test-name patterns skipped only under a named sanitizer (for example an ASan stack-depth limit).
         public var sanitizerSkips: [String: [String]] = [:]
+        /// Extra Linux LeakSanitizer stack symbols, only for independently reproduced dependency/runtime leaks.
+        public var linuxLeakSuppressions: [String] = []
 
         public init() {}
 
@@ -272,6 +274,13 @@ extension Configuration {
             }
             if let age = configuration.scheduledMaxCommitAgeHours, age < 0 {
                 throw SwiftCIError("\(file): scheduledMaxCommitAgeHours must be nonnegative or null")
+            }
+            for symbol in configuration.swift.linuxLeakSuppressions {
+                guard !symbol.isEmpty, symbol.allSatisfy({ $0.isLetter || $0.isNumber || "_.$".contains($0) }) else {
+                    throw SwiftCIError(
+                        "\(file): swift.linuxLeakSuppressions requires a symbol, not a wildcard or suppression file syntax"
+                    )
+                }
             }
             for sanitizer in configuration.swift.sanitizerSkips.keys where !["address", "thread"].contains(sanitizer) {
                 throw SwiftCIError("\(file): swift.sanitizerSkips: unknown sanitizer '\(sanitizer)'")

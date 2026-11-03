@@ -47,6 +47,12 @@ on:
 permissions:
   contents: read
 
+# Timing warnings measure hosted-runner contention as well as compiler work. Keep
+# the CI budget even for flag-free consumer checks; local defaults stay unchanged.
+env:
+  AD_TYPECHECK_BUDGET_MS: "250"
+  AEMI_TYPECHECK_BUDGET_MS: "250"
+
 concurrency:
   group: swift-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule' }}

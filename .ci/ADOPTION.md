@@ -56,7 +56,7 @@ These are adoption baselines, not fixes or proof that findings are false:
   Bundle resource lookup (resourceURL already includes Resources on Linux).
   Local tests/quality pass; a standalone Linux probe verifies the resource API.
 - aemi `cd455e6`: cached Linux product subset, never blanket Linux tests; serial
-  macOS debug matrix 6.4.1/6.3.3, primary release weekly/manual for Protobuf. All kernel,
+  macOS debug matrix 6.4.1/6.3.3, primary release nightly/manual. All kernel,
   Embedded, Unicode and script oracles retained, and result now waits for every
   required oracle. Formats modern package paths, explicitly excludes the legacy
   unformatted trees, and does not impose a new legacy analyzer backlog gate.
@@ -71,3 +71,8 @@ actionlint passes (with only its known unsupported workflow context suppressed).
 Tag publishing, dolly's model-inclusive archive, nightly/dispatch heavy matrices,
 Apple platform builds and docs deployment have not been exercised by migration
 pushes. No timing improvement is claimed before comparable completed runs exist.
+
+The first JSON consumer build exposed loss of the hosted-runner timing budget
+when dev flags are removed (109 ms versus the local 100 ms default). The reusable
+workflow now exports the same 250 ms CI budget for consumer checks without
+turning any dev flags on. Local compiler defaults remain unchanged.

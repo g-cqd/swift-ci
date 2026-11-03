@@ -41,6 +41,7 @@ struct StepsTests {
         #expect(
             leakSuppressions.contains("leak:libXCTest.so\n")
                 && leakSuppressions.contains("leak:Foundation7ProcessC3run\n")
+                && leakSuppressions.contains("leak:FoundationEssentials17readBytesFromFile\n")
         )
         #expect(
             try steps(CheckID.macOSThread) == [

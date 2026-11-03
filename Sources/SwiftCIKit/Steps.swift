@@ -66,13 +66,18 @@ public enum Paths {
 /// - the XCTest runner `swift test` starts after swift-testing keeps its suites until exit (432 bytes in 7 objects,
 ///   all from `XCTMainMisc`);
 /// - Foundation's `Process.run()` keeps one weak reference for the life of the process (32 bytes, once, however many
-///   processes run).
+///   processes run);
+/// - FoundationEssentials leaks its read buffer when reading an empty file (4 KiB per read). See
+///   `.ci/probes/EmptyFileRead.swift` for the standalone reproduction. This suppression covers allocations in
+///   that Foundation file-reading function, not arbitrary Data or project allocations.
 /// A leak allocated anywhere else is still reported.
 public let leakSuppressions = """
     # swift-ci: the XCTest runner's objects live until exit.
     leak:libXCTest.so
     # swift-ci: Foundation's Process keeps one weak reference for the life of the process.
     leak:Foundation7ProcessC3run
+    # swift-ci: Swift 6.4.1 Foundation leaks the read buffer for an empty file.
+    leak:FoundationEssentials17readBytesFromFile
 
     """
 

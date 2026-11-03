@@ -324,6 +324,7 @@ public struct StepPlanner: Sendable {
                     ShellCommand(
                         "Build \(executable), release",
                         ["swift", "build", "-c", "release", "--product", executable]
+                            + (os == .linux ? ["-Xlinker", "-rpath", "-Xlinker", "$ORIGIN"] : [])
                     )
                 ),
                 .archive(executable: executable, os: os)

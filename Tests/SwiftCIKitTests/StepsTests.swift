@@ -111,7 +111,12 @@ struct StepsTests {
     @Test func `archives build each executable in release, then package it`() throws {
         #expect(
             try steps(CheckID.archiveLinux, #"{"release": {"executables": ["tool"]}}"#) == [
-                "swift build -c release --product tool", "archive tool linux"
+                "swift build -c release --product tool -Xlinker -rpath -Xlinker '$ORIGIN'", "archive tool linux"
+            ]
+        )
+        #expect(
+            try steps(CheckID.archiveMacOS, #"{"release": {"executables": ["tool"]}}"#) == [
+                "swift build -c release --product tool", "archive tool macOS"
             ]
         )
         #expect(throws: SwiftCIError.self) { try steps(CheckID.archiveLinux) }

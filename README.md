@@ -237,3 +237,9 @@ For independently reproduced Linux dependency/runtime leaks,
 or suppression-file syntax. Keep a standalone reproduction and removal condition
 in the consuming repository. These additions apply only to Linux ASan, alongside
 the documented runtime defaults; all other leak reports remain enabled.
+
+Linux executable archives link with an `$ORIGIN` runtime search path so their
+bundled Swift libraries are discoverable after extraction. The root-action CI
+smoke runs the real archive command in a disposable container, verifies its
+checksum, hides the installed Swift runtime and executes the extracted binary.
+Runtime copy errors are fatal rather than silently producing incomplete bundles.

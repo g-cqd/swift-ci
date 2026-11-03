@@ -46,3 +46,7 @@ jobs:
           case "$LINUX" in \[*\]) ;; *) echo "linux is not a JSON list" >&2; exit 1 ;; esac
       - uses: ./
         with: { command: steps, arguments: macos-debug }
+      - name: Linux archive runs without the installed Swift runtime
+        env:
+          SWIFT_CI_DISPOSABLE_CONTAINER: "1"
+        run: .ci/probes/archive-linux.sh

@@ -171,7 +171,10 @@ public struct Executor {
                 let words = line.split(separator: " ")
                 if words.count >= 3, words[2].hasPrefix("/usr/lib/swift/") {
                     let library = URL(fileURLWithPath: String(words[2]))
-                    try? files.copyItem(at: library, to: folder.appendingPathComponent(library.lastPathComponent))
+                    let destination = folder.appendingPathComponent(library.lastPathComponent)
+                    if !files.fileExists(atPath: destination.path) {
+                        try files.copyItem(at: library, to: destination)
+                    }
                 }
             }
         }

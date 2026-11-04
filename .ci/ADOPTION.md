@@ -1,10 +1,58 @@
 # Family adoption and verification
 
-Updated 2026-11-03. This ledger distinguishes completed CI from pending work.
+Updated 2026-11-04. This ledger distinguishes completed CI from pending work.
 Always filter Actions queries to `ci.yml`: AemiJSON also runs **Cache cleanup**,
 whose success does not mean CI succeeded.
 
-## Migrated
+## Current state (swift-ci `c930444`)
+
+Twenty-three repositories call the reusable workflow through a `Checks` job pinned to `c930444` (full SHA), each
+with a validated `.ci/action.json` and the same `.ci/swift-ci` bootstrap: the eleven below, and the twelve migrated
+from aemi's older reusable workflow, its `setup-swift` action or copies of `Scripts/analyzers.sh`.
+
+| Repository | Shape | Notes |
+| --- | --- | --- |
+| AemiSwift, InternedStrings | macOS, Swift 6.4.1 + 6.3.3 | `swift package update` before the debug tests |
+| Abysm | macOS | ASan on every change; iOS Simulator job of its own |
+| AemiSDR | macOS, 6.4.1 + 6.3.3 | Metal toolchain + Z3 before, iOS Simulator renderer after the debug tests |
+| swift-search | Linux + macOS, serial | no-GCD gate, self-analysis after Linux debug; release archives |
+| URLBuilder | Linux + macOS | library discipline; its API, platform, generator, downstream and sanitizer jobs after `Checks` |
+| Atelier | three packages | one call per package (`package-path`), gated by a paths filter |
+| AemiMarkdown | Linux + macOS | TLA+ models after the macOS tests; allocation ceilings only where counting works |
+| TerminalKit | macOS | release tests and the signal-safety probe on every change; benchmark comparison after |
+| ask | macOS, Swift 6.4.2 | dependency audit and script guards after the debug tests; budgets and mutation workflows of its own |
+| HTTP | Linux + macOS, serial | graph gates and the 85 % coverage floor as commands; its scoped sanitizers, conformance and performance jobs after `Checks` |
+| CSVCoder | macOS, 6.4.1 + 6.3.3 | platform builds; TLA+/Lean, documentation and the `.version` release flow after `Checks` |
+
+Not migrated: MacFS has no hosted CI by decision (its `macfs-tool gates` runs locally with a copied analyzer lock).
+GameHub is retired. Nothing in either organization still calls aemi's old reusable workflows or `setup-swift`
+action, or fetches its `Scripts/analyzers.sh`; they can be removed from aemi (a workflow-only aemi commit still
+moves the family's pins, so batch it with a code change).
+
+Added to swift-ci for these migrations, each tested on macOS and Linux:
+
+- `package-path` (751891e): several packages per repository, with runs, caches, archives, concurrency and change
+  detection scoped to the package; the bootstrap finds the pin from a package in a directory.
+- `swift.testSkips` (f9ebcf2): skips in one build mode (`debug`, `release`, `address`, `thread`).
+- Platform builds (c930444): the selected Xcode's toolchain, unsigned, without trust prompts, and
+  `SWIFT_SUPPRESS_WARNINGS=NO` (Xcode's `-suppress-warnings` conflicts with a dependency's warnings-as-errors).
+- The discipline's strict configuration is written to a temporary file, not into the checked tree (9661877).
+
+Open:
+
+- aemi's `CAemiCPU` does not build for any simulator (`timingsafe.h` is in every device SDK and no simulator SDK);
+  CSVCoder's platform builds use device SDKs until it is fixed.
+- arcleak reports an observer token collected by `map` into a stored array as unstored (accepted in Atelier's
+  `SettingsScope.swift`).
+- ask runs without the library discipline (it is an application; enabling it means clearing force unwraps in
+  `Sources` and untyped `#expect(throws:)` and wall-clock assertions in `Tests`).
+- HTTP's Linux TSan job has failed since 2026-10-25, before this migration; it is unchanged.
+- Not exercised yet: Atelier's `kittycode/v*` release on swift-actions/setup-swift, CSVCoder's next `.version`
+  release, HTTP's manual h3spec and soak jobs.
+
+## History
+
+### The first eleven (2026-11-03)
 
 All eleven callers use `.ci/action.json` and pin swift-ci `09fd96d` (full SHA in each
 workflow). Each repository's `.ci/README.md`, where present, explains its special
@@ -48,7 +96,7 @@ checks and exceptions. The CLI uses the same configuration locally and in CI.
   explicitly instead of relying on `! command` with errexit (which does not fail
   the shell).
 
-## Consolidation audit (swift-ci `09fd96d`)
+### Consolidation audit (swift-ci `09fd96d`)
 
 Checked from each repository's `origin/main`, not local trees:
 
@@ -74,12 +122,10 @@ Checked from each repository's `origin/main`, not local trees:
   74.31 %, 0 new, 56 accepted). `--help` on a subcommand no longer runs it.
 - All twelve CI runs on these commits completed green.
 
-Open: fcheck `v0.4.7` is unpublished — its first heavy (tag) run crashed the macOS release/ASan/TSan test
-processes (the 600-level nesting test, consistent with stack exhaustion; not reproduced locally on Swift 6.4.2),
-and the gate correctly withheld the release. A skipped advisory job still shows `${{ matrix.title }}` as its
-name in repositories without an advisory toolchain (GitHub does not evaluate a skipped matrix job's name).
+Resolved since: fcheck `v0.4.7` is published (its deep-nesting tests run on a large stack, as the product does), and
+advisory toolchains run in the OS matrices with `continue-on-error`, so no skipped job shows an unrendered name.
 
-## Latest completed verification
+### Latest completed verification
 
 - analyzerkit `80af3dd`: all push checks passed, including Linux debug/release/ASan
   and macOS debug.
@@ -97,7 +143,7 @@ name in repositories without an advisory toolchain (GitHub does not evaluate a s
   LD_LIBRARY_PATH. Passed locally on ARM64 and in the hosted root-action job.
 - All eleven callers have been updated to `cdc970c`; the new push runs are pending.
 
-## Earlier verified steps
+### Earlier verified steps
 
 - swift-ci `1da0e40`: full Actions CI green; 72 tests in 20 suites passed locally
   on macOS and Swift 6.4.1 Linux. Quality and actionlint pass.
@@ -120,7 +166,7 @@ name in repositories without an advisory toolchain (GitHub does not evaluate a s
 - Local library suites and all four new migration quality gates passed. Resource
   lookup was also independently checked against a Linux Foundation bundle.
 
-## Tooling refinements from adoption
+### Tooling refinements from adoption
 
 - Absolute LSAN paths work when a test runs its tool from another directory.
 - Linux Foundation empty-file reads have a standalone reproduction and a narrow
@@ -151,8 +197,18 @@ positives. Only new fingerprints fail; remove entries as the backlog is fixed.
 | modeler | dolly | 25 |
 | arcleak | dolly | 57 |
 | analyzerkit | dolly | 150 (48 warnings, 102 notes) |
+| AemiSDR | deadwood, dolly | 3, 143 |
+| Abysm | dolly | 7 |
+| swift-search | dolly | 17 |
+| URLBuilder | deadwood, dolly | 1, 100 |
+| Atelier: AtelierCore | deadwood, dolly | 3, 1012 |
+| Atelier: GitDiffViewer | deadwood, dolly | 3, 705 |
+| Atelier: KittyCode | deadwood, dolly | 2, 565 |
+| TerminalKit | dolly | 260 (49 warnings) |
+| HTTP | deadwood, dolly | 4, 1330 (283 warnings) |
+| CSVCoder | dolly | 281 |
 
-## Not verified
+## Not verified (the first eleven)
 
 Tag publishing, dolly's model-inclusive archive, full scheduled/manual heavy
 matrices and Apple platform builds have not been exercised by migration pushes.

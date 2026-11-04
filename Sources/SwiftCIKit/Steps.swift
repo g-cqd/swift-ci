@@ -205,9 +205,20 @@ public struct StepPlanner: Sendable {
     enum Mode: Equatable {
         case debug, release
         case sanitizer(String)
+
+        /// Whether a trapping test prints the runtime's backtrace: the sanitizers report a crash themselves.
+        var backtraces: Bool {
+            if case .sanitizer = self { false } else { true }
+        }
     }
 
     // MARK: Swift packages
+
+    /// The Swift runtime's backtracer for test runs: a test that traps (an index out of range, a force unwrap of nil)
+    /// prints the crashed thread with the test and the source line, where the testing helper prints only the
+    /// standard library's location in debug and a signal number in release. Off for the sanitizers, which report
+    /// themselves; the project's `swift.environment` can set `SWIFT_BACKTRACE` otherwise.
+    public static let crashBacktrace = "enable=yes,interactive=no,color=no,threads=crashed,registers=none,images=none"
 
     /// Builds the tests once, then runs them without building: in release, `-enable-testing` makes the build the one
     /// `swift test` needs (without it, `swift test -c release` rebuilds everything after `swift build -c release`).
@@ -253,9 +264,13 @@ public struct StepPlanner: Sendable {
         }
         if !configuration.swift.parallel { test += ["--no-parallel"] }
         let place = path.map { " (\($0))" } ?? ""
+        var testEnvironment = environment
+        if mode.backtraces, testEnvironment["SWIFT_BACKTRACE"] == nil {
+            testEnvironment["SWIFT_BACKTRACE"] = Self.crashBacktrace
+        }
         return [
             .run(ShellCommand("Build the tests, \(label)\(place)", build, environment: environment)),
-            .run(ShellCommand("Test, \(label)\(place)", test, environment: environment))
+            .run(ShellCommand("Test, \(label)\(place)", test, environment: testEnvironment))
         ]
     }
 

@@ -71,4 +71,36 @@ struct DisciplineTests {
         var failing = Executor(root: unsafe.root)
         #expect(throws: SwiftCIError.self) { try failing.run([.discipline(discipline)]) }
     }
+
+    @Test func `only the force-unwrap rules' diagnostics count, and a linter failure without any is reported`() {
+        let spacing = "Sources/Lib/a.swift:40:17: error: [Spacing] remove 1 space"
+        let unwrap = "Sources/Lib/a.swift:2:9: error: [NeverForceUnwrap] do not force unwrap 'x'"
+        let tryBang = "Sources/Lib/a.swift:3:9: error: [NeverUseForceTry] do not use force try"
+        #expect(Discipline.forceUnwrapVerdict(status: 0, output: "") == .clean)
+        #expect(Discipline.forceUnwrapVerdict(status: 1, output: spacing + "\n") == .clean)
+        #expect(
+            Discipline.forceUnwrapVerdict(status: 1, output: [spacing, unwrap, tryBang].joined(separator: "\n"))
+                == .findings([unwrap, tryBang])
+        )
+        #expect(Discipline.forceUnwrapVerdict(status: 1, output: "Segmentation fault\n") == .failed("exit status 1"))
+    }
+
+    @Test func `a formatting problem in shipped code is not a force unwrap, and the count says what failed`() throws {
+        let format = #"{"version": 1, "rules": {}}"#
+        var discipline = Discipline()
+        discipline.shipped = ["Sources/Lib"]
+        let badlyFormatted = try Sandbox([
+            ".swift-format": format,
+            "Sources/Lib/a.swift": "enum Injected {  static   func  f(_ a: Int) -> Int {  return   a  }  }\n"
+        ])
+        var formatting = Executor(root: badlyFormatted.root)
+        try formatting.run([.discipline(discipline)])
+        let both = try Sandbox([
+            ".swift-format": format, "Sources/Lib/a.swift": "let c = Int(\"1\")!\nenum E {  static   func  f() {}  }\n",
+            "Sources/Lib/b.swift": "let d = strtod(s, nil)\n"
+        ])
+        var failing = Executor(root: both.root)
+        let error = try #require(throws: SwiftCIError.self) { try failing.run([.discipline(discipline)]) }
+        #expect(error.description.contains("1 textual finding(s), 1 force unwrap(s) or try! in shipped code"))
+    }
 }

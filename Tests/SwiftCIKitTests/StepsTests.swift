@@ -2,6 +2,9 @@ import Foundation
 import SwiftCIKit
 import Testing
 
+/// The environment word every non-sanitizer `swift test` starts with.
+private let bt = "SWIFT_BACKTRACE=\(StepPlanner.crashBacktrace) "
+
 struct StepsTests {
     func steps(
         _ id: String,
@@ -23,16 +26,18 @@ struct StepsTests {
     }
 
     @Test func `a package builds its tests once and runs them without building again`() throws {
-        #expect(try steps(CheckID.linuxDebug) == ["swift build --build-tests", "swift test --skip-build"])
+        #expect(try steps(CheckID.linuxDebug) == ["swift build --build-tests", "\(bt)swift test --skip-build"])
         #expect(
             try steps(CheckID.macOSDebug) == [
-                "swift build --build-tests --enable-code-coverage", "swift test --skip-build --enable-code-coverage"
+                "swift build --build-tests --enable-code-coverage",
+                "\(bt)swift test --skip-build --enable-code-coverage"
             ]
         )
         // Without -enable-testing, `swift test -c release` would rebuild what `swift build -c release` built.
         #expect(
             try steps(CheckID.linuxRelease) == [
-                "swift build --build-tests -c release -Xswiftc -enable-testing", "swift test --skip-build -c release"
+                "swift build --build-tests -c release -Xswiftc -enable-testing",
+                "\(bt)swift test --skip-build -c release"
             ]
         )
         // On Linux, LeakSanitizer is told about the XCTest runner's objects, and nothing else.
@@ -68,11 +73,17 @@ struct StepsTests {
         let json = #"{"swift": {"environment": {"PKG_DEV": "1"}, "parallel": false}}"#
         #expect(
             try steps(CheckID.linuxDebug, json) == [
-                "PKG_DEV=1 swift build --build-tests", "PKG_DEV=1 swift test --skip-build --no-parallel"
+                "PKG_DEV=1 swift build --build-tests", "PKG_DEV=1 \(bt)swift test --skip-build --no-parallel"
             ]
         )
         #expect(
-            try steps(CheckID.consumer, json) == ["swift build --build-tests", "swift test --skip-build --no-parallel"]
+            try steps(CheckID.consumer, json) == [
+                "swift build --build-tests", "\(bt)swift test --skip-build --no-parallel"
+            ]
+        )
+        let own = #"{"swift": {"environment": {"SWIFT_BACKTRACE": "enable=no"}}}"#
+        #expect(
+            try steps(CheckID.linuxRelease, own).last == "SWIFT_BACKTRACE=enable=no swift test --skip-build -c release"
         )
     }
 
@@ -93,7 +104,7 @@ struct StepsTests {
                 "xcodebuild build-for-testing \(base) -enableCodeCoverage YES",
                 "xcodebuild test-without-building \(base) -enableCodeCoverage YES -resultBundlePath .build/swift-ci/results/App-debug.xcresult",
                 "swift build --build-tests --package-path Core --enable-code-coverage",
-                "swift test --skip-build --package-path Core --enable-code-coverage"
+                "\(bt)swift test --skip-build --package-path Core --enable-code-coverage"
             ]
         )
         #expect(

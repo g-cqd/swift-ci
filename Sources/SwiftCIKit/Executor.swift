@@ -66,6 +66,12 @@ public struct Executor {
         switch step {
             case .run(let command):
                 if dryRun { return print(command) }
+                if let package = BuildLink.packageDirectory(of: command.arguments),
+                    let note = try BuildLink.repair(packageDirectory: root.appendingPathComponent(package))
+                {
+                    print(note)
+                    fflush(nil)
+                }
                 try Shell.run(command.arguments, environment: command.environment, directory: root)
             case .shell(_, let script):
                 if dryRun { return print(script) }
@@ -133,7 +139,7 @@ public struct Executor {
     func check(_ discipline: Discipline) throws {
         let findings = discipline.scan(root: root)
         for finding in findings { print(finding) }
-        var failed = !findings.isEmpty
+        var unwraps = 0
         let shipped = discipline.shipped.filter {
             FileManager.default.fileExists(atPath: root.appendingPathComponent($0).path)
         }
@@ -147,18 +153,27 @@ public struct Executor {
                 .appendingPathComponent("swift-ci-strict-\(UUID().uuidString).swift-format")
             defer { try? FileManager.default.removeItem(at: strict) }
             try Discipline.strictConfiguration(from: try Data(contentsOf: base)).write(to: strict)
-            do {
-                try Shell.run(
-                    ["swift", "format", "lint", "--strict", "--configuration", strict.path, "--recursive"] + shipped,
-                    directory: root
-                )
-            } catch {
-                print("swift-ci: force unwrap or try! in shipped code (\(error))")
-                failed = true
+            // swift-format lints whitespace with every configuration, and the project's rules are quality's swift-format
+            // step: only the force-unwrap rules' findings count here, so a formatting problem is reported once, there.
+            let lint = try Shell.combinedOutput(
+                ["swift", "format", "lint", "--strict", "--configuration", strict.path, "--recursive"] + shipped,
+                directory: root
+            )
+            switch Discipline.forceUnwrapVerdict(status: lint.status, output: lint.output) {
+                case .clean:
+                    break
+                case .findings(let lines):
+                    for line in lines { print(line) }
+                    unwraps = lines.count
+                case .failed(let reason):
+                    print(lint.output, terminator: "")
+                    throw SwiftCIError("discipline: swift format lint failed before checking force unwraps: \(reason)")
             }
         }
-        if failed {
-            throw SwiftCIError("discipline: \(findings.count) textual finding(s) or force unwraps in shipped code")
+        if !findings.isEmpty || unwraps > 0 {
+            throw SwiftCIError(
+                "discipline: \(findings.count) textual finding(s), \(unwraps) force unwrap(s) or try! in shipped code"
+            )
         }
         print("discipline: clean (\(shipped.joined(separator: ", ")))")
     }
@@ -288,6 +303,21 @@ public enum Shell {
             throw SwiftCIError("\(summary(arguments)) exited with \(process.terminationStatus)")
         }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// The exit status and the standard output and error, interleaved as written, of a command that may fail.
+    public static func combinedOutput(_ arguments: [String], directory: URL? = nil) throws -> (
+        status: Int32, output: String
+    ) {
+        let process = try make(arguments, environment: [:], directory: directory)
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let status = process.terminationReason == .exit ? process.terminationStatus : 128 + process.terminationStatus
+        return (status, String(decoding: data, as: UTF8.self))
     }
 
     /// The SHA-256 of a file, from the system's tool: swift-ci implements no digest.

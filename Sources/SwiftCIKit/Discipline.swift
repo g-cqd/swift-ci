@@ -10,7 +10,7 @@ public struct Discipline: Codable, Sendable, Equatable {
     /// The shipped library targets' directories, relative to the root. Tests, plugins, macros and tools are not.
     public var shipped: [String] = ["Sources"]
     /// swift-format's `NeverForceUnwrap` and `NeverUseForceTry` over `shipped`, on top of the project's
-    /// `.swift-format`.
+    /// `.swift-format`. Only those two rules' findings count: formatting is quality's swift-format step.
     public var forceUnwrap = true
     /// The textual rules that apply.
     public var rules: [Rule] = Rule.allCases
@@ -51,9 +51,34 @@ public struct Discipline: Codable, Sendable, Equatable {
     /// The project's `.swift-format` with the force-unwrap rules on, for `swift format lint --configuration`.
     public static func strictConfiguration(from data: Data) throws -> Data {
         try SwiftFormatLint.rewritingRules(of: data) { rules in
-            rules["NeverForceUnwrap"] = true
-            rules["NeverUseForceTry"] = true
+            for rule in forceUnwrapRules { rules[rule] = true }
         }
+    }
+
+    /// The rules the force-unwrap check is about.
+    public static let forceUnwrapRules = ["NeverForceUnwrap", "NeverUseForceTry"]
+
+    /// What a `swift format lint` run with the strict configuration says about force unwraps.
+    public enum ForceUnwrapVerdict: Equatable, Sendable {
+        case clean
+        /// The diagnostics of the force-unwrap rules, as swift-format printed them.
+        case findings([String])
+        /// The linter failed with no diagnostic at all (a crash, an unreadable file): nothing was checked.
+        case failed(String)
+    }
+
+    /// The force-unwrap rules' diagnostics in `output`. Others (whitespace, the project's own rules) are
+    /// quality's swift-format step's, so they neither print nor fail here; a failure with no diagnostic is the
+    /// linter's own.
+    public static func forceUnwrapVerdict(status: Int32, output: String) -> ForceUnwrapVerdict {
+        let lines = output.split(whereSeparator: \.isNewline).map(String.init)
+        let unwraps = lines.filter { line in forceUnwrapRules.contains { line.contains("[\($0)]") } }
+        if !unwraps.isEmpty { return .findings(unwraps) }
+        guard status != 0 else { return .clean }
+        let diagnostic = lines.contains {
+            $0.range(of: #": (error|warning): \[[A-Za-z]+\]"#, options: .regularExpression) != nil
+        }
+        return diagnostic ? .clean : .failed("exit status \(status)")
     }
 
     static func scan(root: URL, directory: String, rules: [Rule]) -> [Finding] {

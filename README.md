@@ -227,6 +227,19 @@ platform: `BeginDocumentationCommentWithOneLineSummary` finds a comment's first 
 and with a period heuristic elsewhere (it ends a sentence at "e.g." and drops inline code). On Linux, quality runs with
 that rule off, through a configuration written outside the project; macOS runs and hooks still check it.
 
+`quality.discipline` adds swift-format's `NeverForceUnwrap` and `NeverUseForceTry` over the shipped targets. Only those
+two rules' findings count, and the step's summary counts them apart from the textual findings: a formatting problem is
+the swift-format check's, reported once, there.
+
+A test that traps (an index out of range, a force unwrap of nil) prints the crashed thread's backtrace, with the test
+and the source line: debug and release `swift test` run with `SWIFT_BACKTRACE` set (the sanitizers report a crash
+themselves; `swift.environment` can set the variable otherwise). Without it the testing helper prints the standard
+library's location in debug and only a signal number in release.
+
+A package's `.build` may be a symbolic link to a directory outside the sources. When its target is gone, SwiftPM fails
+with "The file “<package>” couldn’t be saved in the folder “<parent>”"; before it runs SwiftPM, swift-ci recreates the
+target and says so.
+
 `platforms` builds each scheme with `xcodebuild build` for each platform, with the selected Xcode's toolchain (a
 swift.org toolchain has no iOS, tvOS, watchOS or visionOS standard library), unsigned, without the macro and plugin
 trust prompts, and with `SWIFT_SUPPRESS_WARNINGS=NO`: Xcode's `-suppress-warnings` for dependencies conflicts with

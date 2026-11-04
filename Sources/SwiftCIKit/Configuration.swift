@@ -81,6 +81,9 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var parallel = true
         /// Test-name patterns skipped only under a named sanitizer (for example an ASan stack-depth limit).
         public var sanitizerSkips: [String: [String]] = [:]
+        /// Test-name patterns skipped in one build mode only: `debug`, `release`, `address` or `thread` (for example a
+        /// deadline an unoptimized build misses, which the release tests still run).
+        public var testSkips: [String: [String]] = [:]
         /// Extra Linux LeakSanitizer stack symbols, only for independently reproduced dependency/runtime leaks.
         public var linuxLeakSuppressions: [String] = []
 
@@ -297,6 +300,12 @@ extension Configuration {
             for sanitizer in configuration.swift.sanitizerSkips.keys where !["address", "thread"].contains(sanitizer) {
                 throw SwiftCIError("\(file): swift.sanitizerSkips: unknown sanitizer '\(sanitizer)'")
             }
+            for mode in configuration.swift.testSkips.keys
+            where !["debug", "release", "address", "thread"].contains(mode) {
+                throw SwiftCIError(
+                    "\(file): swift.testSkips: unknown mode '\(mode)' (debug, release, address or thread)"
+                )
+            }
             return configuration
         } catch let error as SwiftCIError {
             throw error
@@ -380,7 +389,9 @@ enum Defaults {
 /// every optional set, so the accepted keys are always exactly the model's.
 enum StrictKeys {
     /// Maps whose keys are the user's.
-    static let freeKeys: Set<String> = ["checks", "swift.environment", "swift.linuxImages", "swift.sanitizerSkips"]
+    static let freeKeys: Set<String> = [
+        "checks", "swift.environment", "swift.linuxImages", "swift.sanitizerSkips", "swift.testSkips"
+    ]
 
     static func check(_ value: Any, against sample: Any, path: String, file: String) throws {
         if freeKeys.contains(path) { return }

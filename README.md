@@ -222,6 +222,10 @@ those cases. For example, AemiProtobuf's existing ASan recursion exception:
 {"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}
 ```
 
+`swift.testSkips` does the same for one build mode, `debug`, `release`, `address` or `thread`, on Linux and macOS:
+for a test whose fixed deadline an unoptimized build misses, which the release tests still run. Prefer fixing the
+test; record why where the skip is.
+
 For a weekly caller cron, set `"scheduledMaxCommitAgeHours": 168` so a commit
 from earlier in the week still receives the scheduled checks. The default
 24-hour idle window suits a daily cron; `null` disables the idle skip. This is

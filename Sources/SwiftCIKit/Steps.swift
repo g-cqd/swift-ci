@@ -204,20 +204,26 @@ public struct StepPlanner: Sendable {
             test += ["--package-path", path]
         }
         let label: String
+        let skips: [String]
         switch mode {
             case .debug:
                 label = "debug"
+                skips = configuration.swift.testSkips["debug"] ?? []
             case .release:
                 label = "release"
                 build += ["-c", "release", "-Xswiftc", "-enable-testing"]
                 test += ["-c", "release"]
+                skips = configuration.swift.testSkips["release"] ?? []
             case .sanitizer(let sanitizer):
                 label = "\(sanitizer) sanitizer"
                 build += ["--sanitize=\(sanitizer)"]
                 test += ["--sanitize=\(sanitizer)"]
-                for pattern in configuration.swift.sanitizerSkips[sanitizer] ?? [] {
-                    test += ["--skip", pattern]
-                }
+                skips =
+                    (configuration.swift.sanitizerSkips[sanitizer] ?? [])
+                    + (configuration.swift.testSkips[sanitizer] ?? [])
+        }
+        for pattern in skips {
+            test += ["--skip", pattern]
         }
         if coverage {
             build += ["--enable-code-coverage"]

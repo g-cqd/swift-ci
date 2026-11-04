@@ -276,6 +276,42 @@ struct SanitizerSkipTests {
     }
 }
 
+struct TestSkipTests {
+    @Test func `a skip applies only to its build mode, on both operating systems`() throws {
+        let config = try configuration(#"{"swift":{"testSkips":{"debug":["AcceptBackpressureTests"]}}}"#)
+        let planner = StepPlanner(configuration: config, project: package, lock: .builtIn)
+        for id in [CheckID.linuxDebug, CheckID.macOSDebug] {
+            guard case .run(let test) = try planner.steps(for: id).last else {
+                Issue.record("missing test step of \(id)")
+                return
+            }
+            let pairs = zip(test.arguments, test.arguments.dropFirst())
+            #expect(pairs.contains { $0 == "--skip" && $1 == "AcceptBackpressureTests" })
+        }
+        for id in [CheckID.linuxRelease, CheckID.macOSRelease, CheckID.linuxAddress, CheckID.linuxThread] {
+            #expect(!commandLines(try planner.steps(for: id)).joined().contains("--skip "))
+        }
+    }
+
+    @Test func `a sanitizer's skips add to its sanitizerSkips`() throws {
+        let config = try configuration(
+            #"{"swift":{"sanitizerSkips":{"thread":["A"]},"testSkips":{"thread":["B"]}}}"#
+        )
+        let planner = StepPlanner(configuration: config, project: package, lock: .builtIn)
+        guard case .run(let test) = try planner.steps(for: CheckID.linuxThread).last else {
+            Issue.record("missing test step")
+            return
+        }
+        #expect(test.arguments.suffix(4) == ["--skip", "A", "--skip", "B"])
+    }
+
+    @Test func `an unknown mode is an error naming it`() {
+        #expect {
+            try configuration(#"{"swift":{"testSkips":{"coverage":["A"]}}}"#)
+        } throws: { "\($0)".contains("swift.testSkips: unknown mode 'coverage'") }
+    }
+}
+
 struct LinuxLeakSuppressionTests {
     @Test func `a reproduced dependency leak can add a symbol without disabling other leak reports`() throws {
         let config = try configuration(#"{"swift":{"linuxLeakSuppressions":["_CFRegularExpressionCreate"]}}"#)

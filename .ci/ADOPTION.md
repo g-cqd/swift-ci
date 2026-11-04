@@ -4,11 +4,13 @@ Updated 2026-11-04. This ledger distinguishes completed CI from pending work.
 Always filter Actions queries to `ci.yml`: AemiJSON also runs **Cache cleanup**,
 whose success does not mean CI succeeded.
 
-## Current state (swift-ci `c930444`)
+## Current state (2026-11-04)
 
-Twenty-three repositories call the reusable workflow through a `Checks` job pinned to `c930444` (full SHA), each
-with a validated `.ci/action.json` and the same `.ci/swift-ci` bootstrap: the eleven below, and the twelve migrated
-from aemi's older reusable workflow, its `setup-swift` action or copies of `Scripts/analyzers.sh`.
+Twenty-three repositories call the reusable workflow through a `Checks` job pinned by full SHA, each with a
+validated `.ci/action.json` and the same `.ci/swift-ci` bootstrap: the eleven below, and the twelve migrated from
+aemi's older reusable workflow, its `setup-swift` action or copies of `Scripts/analyzers.sh`. The family, ask,
+TerminalKit, AemiMarkdown and Atelier pin the commit that locks arcleak 0.17.5; HTTP pins `e950325`; AemiSwift,
+InternedStrings, Abysm, AemiSDR, swift-search, URLBuilder and CSVCoder pin `c930444`.
 
 | Repository | Shape | Notes |
 | --- | --- | --- |
@@ -37,13 +39,22 @@ Added to swift-ci for these migrations, each tested on macOS and Linux:
 - Platform builds (c930444): the selected Xcode's toolchain, unsigned, without trust prompts, and
   `SWIFT_SUPPRESS_WARNINGS=NO` (Xcode's `-suppress-warnings` conflicts with a dependency's warnings-as-errors).
 - The discipline's strict configuration is written to a temporary file, not into the checked tree (9661877).
+- On Linux, swift-format runs without `BeginDocumentationCommentWithOneLineSummary`, whose verdict needs
+  NaturalLanguage (e950325).
+- The discipline counts only `NeverForceUnwrap` and `NeverUseForceTry` findings; a formatting problem was reported
+  as a force unwrap, twice. A `.build` symbolic link to a missing directory gets the directory back before SwiftPM
+  runs (31b9830).
+- The release job finds the archives in its container: `github.workspace` is the host's path there (b0546eb; the
+  first tag since `package-path`, arcleak v0.17.5, failed on it).
+- TLA+ models as a command, `{"tla": {"models": "docs/formal"}}`: the pinned TLC, a state directory per run
+  outside the tree, `.buggy.cfg` controls that must be refuted (dd661c4).
+- arcleak 0.17.5 in the built-in lock: a token made by `map`/`compactMap` goes where the call's result goes.
 
 Open:
 
-- aemi's `CAemiCPU` does not build for any simulator (`timingsafe.h` is in every device SDK and no simulator SDK);
-  CSVCoder's platform builds use device SDKs until it is fixed.
-- arcleak reports an observer token collected by `map` into a stored array as unstored (accepted in Atelier's
-  `SettingsScope.swift`).
+- CSVCoder's platform builds use device SDKs; aemi builds for simulators since 15217a0, so they can move back.
+- AemiProtobuf (`Scripts/model.sh`) and CSVCoder (`Scripts/formal.sh`) still run TLC from their own scripts, with
+  Lean beside it; each run now has its own state directory.
 - ask runs without the library discipline (it is an application; enabling it means clearing force unwraps in
   `Sources` and untyped `#expect(throws:)` and wall-clock assertions in `Tests`).
 - HTTP's Linux TSan job has failed since 2026-10-25, before this migration; it is unchanged.

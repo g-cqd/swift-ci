@@ -154,9 +154,9 @@ public struct ToolLock: Codable, Sendable, Equatable {
         return ToolLock(tools: [
             gcqd(
                 "arcleak",
-                "0.17.4",
-                mac: "c3c37a8050456d944ae9ac7709298100aa67d9be3d943bede427d954488452b7",
-                linux: "2a12b2fd1ec465e8d64538cb89ef594f725edb5096168205e89616527f0d9b25"
+                "0.17.5",
+                mac: "6c1a83ce06587bd592bf4483e94be315d17a9382b9e732fb13ee8bb362d5f396",
+                linux: "e08eb26a3463479f79b22182360f76ddde987b71b30003c322defac891a8f7b4"
             ),
             gcqd(
                 "deadwood",

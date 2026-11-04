@@ -9,8 +9,9 @@ whose success does not mean CI succeeded.
 Twenty-three repositories call the reusable workflow through a `Checks` job pinned by full SHA, each with a
 validated `.ci/action.json` and the same `.ci/swift-ci` bootstrap: the eleven below, and the twelve migrated from
 aemi's older reusable workflow, its `setup-swift` action or copies of `Scripts/analyzers.sh`. The family, ask,
-TerminalKit, AemiMarkdown and Atelier pin the commit that locks arcleak 0.17.5; HTTP pins `e950325`; AemiSwift,
-InternedStrings, Abysm, AemiSDR, swift-search, URLBuilder and CSVCoder pin `c930444`.
+TerminalKit, AemiMarkdown and Atelier pin `27f96f0` (arcleak 0.17.5 in the lock); AemiProtobuf and CSVCoder pin
+`e33bcf9` (TLA+ models on the `tla` command); HTTP pins `e950325`; AemiSwift, InternedStrings, Abysm, AemiSDR,
+swift-search and URLBuilder pin `c930444`.
 
 | Repository | Shape | Notes |
 | --- | --- | --- |
@@ -27,9 +28,9 @@ InternedStrings, Abysm, AemiSDR, swift-search, URLBuilder and CSVCoder pin `c930
 | CSVCoder | macOS, 6.4.1 + 6.3.3 | platform builds; TLA+/Lean, documentation and the `.version` release flow after `Checks` |
 
 Not migrated: MacFS has no hosted CI by decision (its `macfs-tool gates` runs locally with a copied analyzer lock).
-GameHub is retired. Nothing in either organization still calls aemi's old reusable workflows or `setup-swift`
-action, or fetches its `Scripts/analyzers.sh`; they can be removed from aemi (a workflow-only aemi commit still
-moves the family's pins, so batch it with a code change).
+GameHub is retired. aemi's old reusable workflows (`swift-quality.yml`, `swift-tool.yml`), its `setup-swift` and
+`setup-private-dependency` actions and `Scripts/analyzers.sh` with its lock are removed (aemi 3062470): nothing
+called them from main, and AemiUI pins `setup-swift` by commit, which stays reachable.
 
 Added to swift-ci for these migrations, each tested on macOS and Linux:
 
@@ -49,12 +50,16 @@ Added to swift-ci for these migrations, each tested on macOS and Linux:
 - TLA+ models as a command, `{"tla": {"models": "docs/formal"}}`: the pinned TLC, a state directory per run
   outside the tree, `.buggy.cfg` controls that must be refuted (dd661c4).
 - arcleak 0.17.5 in the built-in lock: a token made by `map`/`compactMap` goes where the call's result goes.
+- TLC with the off-heap fingerprint set: with the default one, a model that holds failed about one run in four
+  with "Division by zero" in TLC's collision-probability report (e33bcf9); a held model reports the final state
+  count, not a progress line (84a0fe1).
 
 Open:
 
 - CSVCoder's platform builds use device SDKs; aemi builds for simulators since 15217a0, so they can move back.
-- AemiProtobuf (`Scripts/model.sh`) and CSVCoder (`Scripts/formal.sh`) still run TLC from their own scripts, with
-  Lean beside it; each run now has its own state directory.
+- AemiProtobuf's and CSVCoder's TLA+ models run on the `tla` command (AemiProtobuf weekly on macOS, CSVCoder after
+  the macOS release tests; its control is `BackpressureOld.buggy.cfg`); their own jobs keep the Lean proofs.
+  AemiProtobuf's modeler check moved into quality (swift-ci's modeler 0.4.7, on every change).
 - ask runs without the library discipline (it is an application; enabling it means clearing force unwraps in
   `Sources` and untyped `#expect(throws:)` and wall-clock assertions in `Tests`).
 - HTTP's Linux TSan job has failed since 2026-10-25, before this migration; it is unchanged.

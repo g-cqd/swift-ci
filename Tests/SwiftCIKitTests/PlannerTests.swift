@@ -86,12 +86,15 @@ struct PlannerTests {
         let json =
             #"{"swift": {"versions": ["6.4.1", "6.3.3"], "advisory": ["nightly-main"], "matrix": ["linux-debug"]}}"#
         let push = try plan(json, .push)
-        let debug = push.linux.filter { $0.id == CheckID.linuxDebug }
+        let debug = push.linux.filter { $0.id == CheckID.linuxDebug && !$0.advisory }
         #expect(debug.map(\.swift) == ["6.4.1", "6.3.3"])
         #expect(debug.map(\.container) == ["swift:6.4.1-noble", "swift:6.3.3-noble"])
         #expect(push.advisory.map(\.swift) == ["nightly-main"])
         #expect(push.advisory.map(\.container) == ["swiftlang/swift:nightly-main-noble"])
-        #expect(push.advisory.allSatisfy(\.advisory) && !push.linux.contains(where: \.advisory))
+        // In the Linux matrix, marked: the workflow continues on its error, and names it.
+        #expect(push.advisory.allSatisfy(\.advisory) && push.linux.filter(\.advisory) == push.advisory)
+        #expect(push.advisory.map(\.title) == ["Tests · Debug · Linux · Swift nightly-main · Advisory"])
+        #expect(!push.linux.filter { !$0.advisory }.contains { $0.title.hasSuffix("Advisory") })
         #expect(try plan(json, .push).linux.filter { $0.id == CheckID.linuxRelease }.map(\.swift) == ["6.4.1"])
     }
 

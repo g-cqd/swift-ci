@@ -167,7 +167,6 @@ func main() throws {
             if let path = arguments.options["--github-output"] ?? ProcessInfo.processInfo.environment["GITHUB_OUTPUT"] {
                 let lines = [
                     "linux=\(try compact(plan.linux))", "macos=\(try compact(plan.macOS))",
-                    "advisory=\(try compact(plan.advisory))", "has-advisory=\(!plan.advisory.isEmpty)",
                     "has-linux=\(!plan.linux.isEmpty)", "has-macos=\(!plan.macOS.isEmpty)",
                     "publish=\(plan.publish)", "skipped=\(plan.skipped ?? "")"
                 ]
@@ -176,9 +175,7 @@ func main() throws {
             if let summary = ProcessInfo.processInfo.environment["GITHUB_STEP_SUMMARY"] {
                 var text = "### swift-ci plan (\(plan.trigger.rawValue))\n\n"
                 if let skipped = plan.skipped { text += "Nothing to check: \(skipped).\n" }
-                for job in plan.linux + plan.macOS + plan.advisory {
-                    text += "- \(job.os.rawValue): \(job.title)\(job.advisory ? " (advisory)" : "")\n"
-                }
+                for job in plan.linux + plan.macOS { text += "- \(job.title)\n" }
                 if plan.publish { text += "- publish the release\n" }
                 try append(text, to: summary)
             }

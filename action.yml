@@ -15,7 +15,7 @@ branding:
 #
 #   - id: plan
 #     uses: g-cqd/swift-ci@<commit>
-#     with: { command: plan }                 # outputs: linux, macos, advisory (JSON matrices), publish, skipped
+#     with: { command: plan }                 # outputs: linux, macos (JSON matrices), publish, skipped
 #
 # The CLI is built from this action's own source (the pinned commit), cached per source, OS and architecture. It
 # needs a Swift toolchain on the runner: a Swift image on Linux, Xcode's or one installed by setup-swift on macOS.
@@ -48,18 +48,12 @@ outputs:
   macos:
     description: plan — the macOS jobs.
     value: ${{ steps.swift-ci.outputs.macos }}
-  advisory:
-    description: plan — jobs whose failure fails nothing.
-    value: ${{ steps.swift-ci.outputs.advisory }}
   has-linux:
     value: ${{ steps.swift-ci.outputs.has-linux }}
     description: plan — whether there are Linux jobs.
   has-macos:
     value: ${{ steps.swift-ci.outputs.has-macos }}
     description: plan — whether there are macOS jobs.
-  has-advisory:
-    value: ${{ steps.swift-ci.outputs.has-advisory }}
-    description: plan — whether there are advisory jobs.
   publish:
     description: plan — whether the run publishes a release.
     value: ${{ steps.swift-ci.outputs.publish }}

@@ -44,7 +44,7 @@ jobs:
         with: { fetch-depth: 2 }
       - id: plan
         uses: g-cqd/swift-ci@<commit>
-        with: { command: plan }          # outputs linux, macos, advisory (matrices), publish, skipped
+        with: { command: plan }          # outputs linux, macos (matrices), publish, skipped
   linux:
     needs: plan
     strategy: { matrix: { include: "${{ fromJSON(needs.plan.outputs.linux) }}" } }
@@ -108,7 +108,8 @@ Paths inside the configuration are relative to the repository root. Formatter co
 - **Linux first.** Linux runners are cheap and plentiful; macOS ones are counted per account and queue. So the version
   matrix and the sanitizers of every change run on Linux, and a change needs one macOS job.
 - `gate` is the one check a branch rule requires: a skipped job passes, a failed or cancelled one does not.
-  Advisory jobs (`swift.advisory`, such as a nightly toolchain) report but never fail it.
+  Advisory legs (`swift.advisory`, such as a nightly toolchain) run in the same OS matrix, named `· Advisory`, and
+  continue on error: they report but never fail the run.
 
 ## Configuration
 

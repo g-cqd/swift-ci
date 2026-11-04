@@ -125,13 +125,15 @@ public struct Plan: Codable, Sendable, Equatable {
     public var trigger: Trigger
     public var linux: [PlannedJob]
     public var macOS: [PlannedJob]
-    /// Jobs whose failure is reported but fails nothing (an advisory toolchain), on either OS. The gate does not wait
-    /// for them.
-    public var advisory: [PlannedJob]
     /// Publish a release (a tag of a project with executables).
     public var publish: Bool
     /// Why the run checks nothing, when it does not.
     public var skipped: String?
+
+    /// The legs on an advisory toolchain, in either list. They run in the same matrix as the others (one job per OS,
+    /// so a run without them has no skipped job to show) and continue on error: their failure is reported, the gate
+    /// passes.
+    public var advisory: [PlannedJob] { (linux + macOS).filter(\.advisory) }
 }
 
 /// Decides the jobs of a run from the configuration, the project and the event.
@@ -158,7 +160,7 @@ public struct Planner: Sendable {
     /// - Throws: ``SwiftCIError`` for settings that name no check or clash.
     public func plan(event: Event, changedFiles: [String]?, hoursSinceLastCommit: Double? = nil) throws -> Plan {
         try validate()
-        var plan = Plan(trigger: event.trigger, linux: [], macOS: [], advisory: [], publish: false, skipped: nil)
+        var plan = Plan(trigger: event.trigger, linux: [], macOS: [], publish: false, skipped: nil)
         if [.push, .pullRequest, .mergeQueue].contains(event.trigger), let files = changedFiles, !files.isEmpty {
             let documentation = configuration.documentationOnlyPaths.map(Glob.init)
             if files.allSatisfy({ file in documentation.contains { $0.matches(file) } }) {
@@ -181,12 +183,7 @@ public struct Planner: Sendable {
         }
         for (id, os) in checks.map({ ($0.id, $0.os) }) + commands.map({ ($0.id, $0.os) }) {
             let planned = jobs(for: id, os: os)
-            plan.advisory += planned.filter(\.advisory)
-            if os == .linux {
-                plan.linux += planned.filter { !$0.advisory }
-            } else {
-                plan.macOS += planned.filter { !$0.advisory }
-            }
+            if os == .linux { plan.linux += planned } else { plan.macOS += planned }
         }
         plan.publish = event.trigger == .tag && !(configuration.release?.executables.isEmpty ?? true)
         return plan
@@ -221,9 +218,10 @@ public struct Planner: Sendable {
                 " · \(os.rawValue == "linux" ? "Linux" : "macOS")"
                 + (version == "xcode" ? " · Xcode toolchain" : " · Swift \(version)")
             let title = configuration.commands.first(where: { $0.id == id })?.title ?? CheckID.title(for: id)
+            let advisory = entry.advisory ? " · Advisory" : ""
             return PlannedJob(
                 id: id,
-                title: title + suffix,
+                title: title + suffix + advisory,
                 os: os,
                 runner: os == .linux ? configuration.runners.linux : configuration.runners.macOS,
                 container: os == .linux ? swift.image(for: version) : "",

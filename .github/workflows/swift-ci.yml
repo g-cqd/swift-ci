@@ -14,9 +14,8 @@ name: Swift CI
 #       permissions: { contents: write }   # write only for publishing a tag
 #       secrets: inherit
 #
-#   plan ──▶ linux (matrix) ──┐
-#        ├─▶ macos (matrix) ──┼─▶ publish (tags) ─▶ gate
-#        └─▶ advisory ────────┘ (never fails the gate)
+#   plan ─┬▶ linux (matrix) ──┐
+#         └▶ macos (matrix) ──┴─▶ publish (tags) ─▶ gate
 #
 # The plan job runs `swift-ci plan`, which decides from the configuration and the event which checks run where: a
 # change runs quality and the Linux checks and one macOS job; the nightly run (only when a commit landed) and a tag
@@ -69,10 +68,8 @@ jobs:
     outputs:
       linux: ${{ steps.plan.outputs.linux }}
       macos: ${{ steps.plan.outputs.macos }}
-      advisory: ${{ steps.plan.outputs.advisory }}
       has-linux: ${{ steps.plan.outputs.has-linux }}
       has-macos: ${{ steps.plan.outputs.has-macos }}
-      has-advisory: ${{ steps.plan.outputs.has-advisory }}
       publish: ${{ steps.plan.outputs.publish }}
     steps:
       # Credentials kept (read-only token): the CLI fetches the commit a change is compared with, in a private
@@ -99,6 +96,8 @@ jobs:
     needs: plan
     if: ${{ needs.plan.outputs.has-linux == 'true' }}
     name: ${{ matrix.title }}
+    # An advisory toolchain's leg reports its failure without failing the job, the release or the gate.
+    continue-on-error: ${{ matrix.advisory }}
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
@@ -163,6 +162,8 @@ jobs:
     needs: plan
     if: ${{ needs.plan.outputs.has-macos == 'true' }}
     name: ${{ matrix.title }}
+    # An advisory toolchain's leg reports its failure without failing the job, the release or the gate.
+    continue-on-error: ${{ matrix.advisory }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
@@ -243,35 +244,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  advisory:
-    needs: plan
-    if: ${{ needs.plan.outputs.has-advisory == 'true' }}
-    name: ${{ matrix.title }} (advisory)
-    runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
-    timeout-minutes: ${{ inputs.timeout-minutes }}
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.advisory) }}
-    steps:
-      - name: Setup · Check Out Sources
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - name: Setup · Check Out Swift CI
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: .build/swift-ci-src
-          persist-credentials: false
-      - name: ${{ matrix.title }}
-        uses: ./.build/swift-ci-src
-        with:
-          arguments: ${{ matrix.id }}
-          config: ${{ inputs.config }}
-
   publish:
     name: Release
     needs: [plan, linux, macos]
@@ -312,7 +284,7 @@ jobs:
   gate:
     name: Gate
     # The one check a branch rule requires. Skipped jobs pass (nothing to check, or not a tag); failed or cancelled
-    # ones do not. The advisory job is not waited for.
+    # ones do not. An advisory leg continues on error, so its failure does not reach here.
     needs: [plan, linux, macos, publish]
     if: ${{ always() }}
     runs-on: ${{ fromJSON(inputs.plan-runner) }}

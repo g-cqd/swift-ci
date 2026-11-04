@@ -288,7 +288,9 @@ jobs:
         with:
           pattern: swift-ci-${{ needs.plan.outputs.scope }}archive-*
           merge-multiple: true
-          path: .build/swift-ci/assets
+          # Inside the package, and named relative to it below: in a container job `github.workspace` is the host's
+          # path (/home/runner/work/...), which the container does not have.
+          path: ${{ inputs.package-path }}/.build/swift-ci/assets
       - name: Setup · Install Release Tools
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends gh zip > /dev/null
       - name: Publish ${{ github.ref_name }}
@@ -297,7 +299,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           command: publish
-          arguments: --assets ${{ github.workspace }}/.build/swift-ci/assets --repository ${{ github.repository }}
+          arguments: --assets .build/swift-ci/assets --repository ${{ github.repository }}
           config: ${{ inputs.config }}
           working-directory: ${{ inputs.package-path }}
 

@@ -219,9 +219,9 @@ struct ToolLockTests {
         let dolly = try ToolLock.builtIn.tool(named: "dolly")
         #expect(
             try dolly.archive(for: .linuxX86_64).url
-                == "https://github.com/g-cqd/dolly/releases/download/v0.14.3/dolly-0.14.3-linux-x86_64.tar.gz"
+                == "https://github.com/g-cqd/dolly/releases/download/v0.14.4/dolly-0.14.4-linux-x86_64.tar.gz"
         )
-        #expect(dolly.binaryPath(for: .macOSArm64) == "dolly-0.14.3-macos-arm64/dolly")
+        #expect(dolly.binaryPath(for: .macOSArm64) == "dolly-0.14.4-macos-arm64/dolly")
         let swiftformat = try ToolLock.builtIn.tool(named: "swiftformat")
         #expect(swiftformat.binaryPath(for: .linuxX86_64) == "swiftformat_linux")
         #expect(swiftformat.binaryPath(for: .macOSArm64) == "swiftformat")
@@ -372,9 +372,9 @@ struct CommandLineHelpTests {
 struct LocalToolLockTests {
     @Test func `litmus is pinned for local mutation testing on macOS only`() throws {
         let litmus = try ToolLock.builtIn.tool(named: "litmus")
-        #expect(litmus.version == "0.3.1")
+        #expect(litmus.version == "0.3.2")
         #expect(litmus.archives.keys.sorted() == [ToolLock.Platform.macOSArm64.rawValue])
-        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.3.1-macos-arm64/litmus")
+        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.3.2-macos-arm64/litmus")
         #expect(litmus.arguments == nil)
     }
 }

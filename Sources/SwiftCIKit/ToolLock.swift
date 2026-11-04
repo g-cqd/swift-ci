@@ -154,44 +154,44 @@ public struct ToolLock: Codable, Sendable, Equatable {
         return ToolLock(tools: [
             gcqd(
                 "arcleak",
-                "0.17.3",
-                mac: "9759490a2fefdf6a4c9836a48b536f1cdc0f7f4a0cefa448be56eebdad86b7c6",
-                linux: "f676e5b7ca9b47fb35b6fa7efe768a0bd18e6bfb4a3bffeee6db7f7cb537090f"
+                "0.17.4",
+                mac: "c3c37a8050456d944ae9ac7709298100aa67d9be3d943bede427d954488452b7",
+                linux: "2a12b2fd1ec465e8d64538cb89ef594f725edb5096168205e89616527f0d9b25"
             ),
             gcqd(
                 "deadwood",
-                "0.15.3",
-                mac: "fb9e6b61f1156f8972e7e0911376e0871a73cce178846012c6a6f1f3ca01c95f",
-                linux: "45c01385027b02c8bde6d728435d81aeb45fc352504e356beb564ec83bbe58d5"
+                "0.15.4",
+                mac: "5e8c28a7de9d9cfe82aad5832af3de699be4df68bbb0e4373c31d5ac1e24e03f",
+                linux: "3350a50fee3cfc4d07b11a9ce77c8bc94a609d111699bca4e427092374c59579"
             ),
             gcqd(
                 "dolly",
-                "0.14.3",
-                mac: "2dbc2c8167e5164729d11b24a232d70b2f09dd37f9188a78ea1bdc94a0ac3fba",
-                linux: "9d91b64ab2c9d9aa79037aae8b72851cdd52ede21aae51c2b6638020962247cd"
+                "0.14.4",
+                mac: "aceeff75dcce7d4e6aebf634df7bad947f62226f45a65289579b0c292f8af84f",
+                linux: "ce1ada1a69877a9c8464862d19b32aa595b15d17610100ca1b24dc3c62225946"
             ),
             gcqd(
                 "fcheck",
-                "0.4.7",
-                mac: "9ac466e54e541d183915c44706a11b3b431a37d49fd45d9136cf1c1c11bc7e9f",
-                linux: "76d943227bd3831d2eb65982c460cab623aaffcb8db014ba47fd8e4cbc28abde"
+                "0.4.8",
+                mac: "5f6ec32ecd94c956fe4703690c99590e91dae0f3de8333914345360c7b6bd18d",
+                linux: "5eed49fad58d84aec265581647e10310860b36cf3edba4d42383d9bdfb89775c"
             ),
             gcqd(
                 "modeler",
-                "0.4.6",
-                mac: "e75f2b486f5095dc6baefe49a80bd264f0bd392d42437f0206edbf3ba06ce13c",
-                linux: "ca722da139cd3baf4db1aed5f2bccd52e47ed284221db2ce419d4df379e92067",
+                "0.4.7",
+                mac: "61e2f9ccbb3266f8fa950681b06afb0dffae3101d35a0f7d50cc91148db7450b",
+                linux: "c9f137af946ff887623013d309104fc6e5f6a89301e2948538f7a267884d7207",
                 command: "check"
             ),
             // Local-only (mutation testing on this machine); macOS arm64 is the only published archive.
             Tool(
                 name: "litmus",
-                version: "0.3.1",
+                version: "0.3.2",
                 archives: [
                     Platform.macOSArm64.rawValue: .init(
                         url:
                             "https://github.com/g-cqd/litmus/releases/download/v{version}/litmus-{version}-macos-arm64.tar.gz",
-                        sha256: "eaa1cbc2b5e7f5fb2eebb9385c4ad367fd8653c417fc91ea55a4070f0a26f21f"
+                        sha256: "9651dd09f8b22dc93f2b03e3befe8e4a49c0fff583c28f134c713070223916c5"
                     )
                 ],
                 binary: "litmus-{version}-{platform}/litmus",

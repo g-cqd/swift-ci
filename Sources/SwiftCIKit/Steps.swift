@@ -38,6 +38,8 @@ public enum Step: Sendable, Equatable {
     case file(path: String, contents: String)
     /// The shipped-library and test-tree rules (``Discipline``).
     case discipline(Discipline)
+    /// swift-format over these files with the project's `.swift-format`, adapted to the platform (``SwiftFormatLint``).
+    case swiftFormat(files: [String])
 
     public var title: String {
         switch self {
@@ -48,6 +50,7 @@ public enum Step: Sendable, Equatable {
             case .archive(let executable, _): "Archive \(executable)"
             case .file(let path, _): "Write \(path)"
             case .discipline: "Discipline · Shipped Code & Tests"
+            case .swiftFormat(let files): "swift-format (\(files.count) files)"
         }
     }
 }
@@ -429,10 +432,7 @@ public struct StepPlanner: Sendable {
                         include.contains { $0.matches(file) } && !exclude.contains { $0.matches(file) }
                     }
                     guard !files.isEmpty else { continue }
-                    let arguments =
-                        ["swift", "format", "lint", "--strict", "--parallel", "--configuration", ".swift-format"]
-                        + files
-                    steps.append(.run(ShellCommand("swift-format (\(files.count) files)", arguments)))
+                    steps.append(.swiftFormat(files: files))
                 case .swiftLint:
                     steps += try locked(
                         "swiftlint",

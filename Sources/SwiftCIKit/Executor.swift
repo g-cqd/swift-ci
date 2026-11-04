@@ -85,6 +85,8 @@ public struct Executor {
                     withIntermediateDirectories: true
                 )
                 try contents.write(to: url, atomically: true, encoding: .utf8)
+            case .swiftFormat(let files):
+                try lint(files, dryRun: dryRun)
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)
@@ -92,6 +94,36 @@ public struct Executor {
                 if dryRun { return print("archive \(executable) into \(Paths.distribution)") }
                 try archive(executable, os: os)
         }
+    }
+
+    // MARK: swift-format
+
+    /// swift-format lint over `files`; without NaturalLanguage, with the project's configuration minus the rules that
+    /// need it (written outside the project, removed after).
+    func lint(_ files: [String], dryRun: Bool) throws {
+        let base = root.appendingPathComponent(".swift-format")
+        let portable =
+            try FileManager.default.fileExists(atPath: base.path)
+            ? SwiftFormatLint.portableConfiguration(
+                from: try Data(contentsOf: base),
+                naturalLanguage: SwiftFormatLint.hasNaturalLanguage
+            ) : nil
+        guard let portable else {
+            let arguments = SwiftFormatLint.arguments(configuration: ".swift-format", files: files)
+            if dryRun { return print(ShellCommand("swift-format", arguments)) }
+            return try Shell.run(arguments, directory: root)
+        }
+        let configuration = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swift-ci-format-\(UUID().uuidString).swift-format")
+        let arguments = SwiftFormatLint.arguments(configuration: configuration.path, files: files)
+        if dryRun { return print(ShellCommand("swift-format", arguments)) }
+        print(
+            "swift-format: \(SwiftFormatLint.naturalLanguageRules.joined(separator: ", ")) is checked where swift-format"
+                + " has NaturalLanguage (macOS), not here"
+        )
+        try portable.write(to: configuration)
+        defer { try? FileManager.default.removeItem(at: configuration) }
+        try Shell.run(arguments, directory: root)
     }
 
     // MARK: Discipline

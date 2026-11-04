@@ -435,3 +435,36 @@ struct MutationOutputTests {
         #expect(!FileManager.default.fileExists(atPath: first.mutationOutput))
     }
 }
+
+struct SwiftFormatLintTests {
+    let configuration = Data(
+        #"{"lineLength": 120, "rules": {"BeginDocumentationCommentWithOneLineSummary": true, "NeverForceUnwrap": false}}"#
+            .utf8
+    )
+
+    @Test func `without NaturalLanguage, the rule that needs it is off and the rest is the project's`() throws {
+        let data = try #require(try SwiftFormatLint.portableConfiguration(from: configuration, naturalLanguage: false))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let rules = try #require(json["rules"] as? [String: Any])
+        #expect(rules["BeginDocumentationCommentWithOneLineSummary"] as? Bool == false)
+        #expect(rules["NeverForceUnwrap"] as? Bool == false)
+        #expect(json["lineLength"] as? Int == 120)
+    }
+
+    @Test func `with NaturalLanguage, or when the project leaves the rule off, the project's configuration is used`()
+        throws
+    {
+        #expect(try SwiftFormatLint.portableConfiguration(from: configuration, naturalLanguage: true) == nil)
+        let off = Data(#"{"rules": {"BeginDocumentationCommentWithOneLineSummary": false}}"#.utf8)
+        #expect(try SwiftFormatLint.portableConfiguration(from: off, naturalLanguage: false) == nil)
+        #expect(try SwiftFormatLint.portableConfiguration(from: Data(#"{}"#.utf8), naturalLanguage: false) == nil)
+    }
+
+    @Test func `the platform answers as swift-format's own build does`() {
+        #if os(macOS)
+            #expect(SwiftFormatLint.hasNaturalLanguage)
+        #elseif os(Linux)
+            #expect(!SwiftFormatLint.hasNaturalLanguage)
+        #endif
+    }
+}

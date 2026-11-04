@@ -50,14 +50,10 @@ public struct Discipline: Codable, Sendable, Equatable {
 
     /// The project's `.swift-format` with the force-unwrap rules on, for `swift format lint --configuration`.
     public static func strictConfiguration(from data: Data) throws -> Data {
-        guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw SwiftCIError(".swift-format is not a JSON object")
+        try SwiftFormatLint.rewritingRules(of: data) { rules in
+            rules["NeverForceUnwrap"] = true
+            rules["NeverUseForceTry"] = true
         }
-        var rules = json["rules"] as? [String: Any] ?? [:]
-        rules["NeverForceUnwrap"] = true
-        rules["NeverUseForceTry"] = true
-        json["rules"] = rules
-        return try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
     }
 
     static func scan(root: URL, directory: String, rules: [Rule]) -> [Finding] {

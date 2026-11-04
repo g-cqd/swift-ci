@@ -222,6 +222,11 @@ those cases. For example, AemiProtobuf's existing ASan recursion exception:
 {"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}
 ```
 
+Quality's swift-format check uses the project's `.swift-format`, except for a rule whose verdict depends on the
+platform: `BeginDocumentationCommentWithOneLineSummary` finds a comment's first sentence with NaturalLanguage on macOS
+and with a period heuristic elsewhere (it ends a sentence at "e.g." and drops inline code). On Linux, quality runs with
+that rule off, through a configuration written outside the project; macOS runs and hooks still check it.
+
 `platforms` builds each scheme with `xcodebuild build` for each platform, with the selected Xcode's toolchain (a
 swift.org toolchain has no iOS, tvOS, watchOS or visionOS standard library), unsigned, without the macro and plugin
 trust prompts, and with `SWIFT_SUPPRESS_WARNINGS=NO`: Xcode's `-suppress-warnings` for dependencies conflicts with

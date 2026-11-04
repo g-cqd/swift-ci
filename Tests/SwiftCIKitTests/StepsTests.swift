@@ -219,9 +219,9 @@ struct ToolLockTests {
         let dolly = try ToolLock.builtIn.tool(named: "dolly")
         #expect(
             try dolly.archive(for: .linuxX86_64).url
-                == "https://github.com/g-cqd/dolly/releases/download/v0.14.2/dolly-0.14.2-linux-x86_64.tar.gz"
+                == "https://github.com/g-cqd/dolly/releases/download/v0.14.3/dolly-0.14.3-linux-x86_64.tar.gz"
         )
-        #expect(dolly.binaryPath(for: .macOSArm64) == "dolly-0.14.2-macos-arm64/dolly")
+        #expect(dolly.binaryPath(for: .macOSArm64) == "dolly-0.14.3-macos-arm64/dolly")
         let swiftformat = try ToolLock.builtIn.tool(named: "swiftformat")
         #expect(swiftformat.binaryPath(for: .linuxX86_64) == "swiftformat_linux")
         #expect(swiftformat.binaryPath(for: .macOSArm64) == "swiftformat")

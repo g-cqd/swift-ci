@@ -154,33 +154,33 @@ public struct ToolLock: Codable, Sendable, Equatable {
         return ToolLock(tools: [
             gcqd(
                 "arcleak",
-                "0.17.2",
-                mac: "c4d03f755d01a19a8beeab67029942117260f0c8282d6414b11b2d962066c157",
-                linux: "bf234be60cc270fddacf0b0cc0208464ecd2eb9cc8ac6d40ab1c18c503e4a6d1"
+                "0.17.3",
+                mac: "9759490a2fefdf6a4c9836a48b536f1cdc0f7f4a0cefa448be56eebdad86b7c6",
+                linux: "f676e5b7ca9b47fb35b6fa7efe768a0bd18e6bfb4a3bffeee6db7f7cb537090f"
             ),
             gcqd(
                 "deadwood",
-                "0.15.2",
-                mac: "fa9f8c730514ad41733d1fff839a5d4db49b3d4e1f2a36ee5f1cd125b7bd2ede",
-                linux: "4cf6b084ca6e8ed5465a8e3609c78513e43f984c83e647478ed27cfe2ab2ae41"
+                "0.15.3",
+                mac: "fb9e6b61f1156f8972e7e0911376e0871a73cce178846012c6a6f1f3ca01c95f",
+                linux: "45c01385027b02c8bde6d728435d81aeb45fc352504e356beb564ec83bbe58d5"
             ),
             gcqd(
                 "dolly",
-                "0.14.2",
-                mac: "b1cabd950f2022659aae443f3f2e242395191dd3778726f020596ef2013fbb27",
-                linux: "f7e9a6cdcbe2a35463ebe1396cba088cffb55a409b77f39fc9b0b039a0326821"
+                "0.14.3",
+                mac: "2dbc2c8167e5164729d11b24a232d70b2f09dd37f9188a78ea1bdc94a0ac3fba",
+                linux: "9d91b64ab2c9d9aa79037aae8b72851cdd52ede21aae51c2b6638020962247cd"
             ),
             gcqd(
                 "fcheck",
-                "0.4.6",
-                mac: "ddf37e77c2fb2470ef114ad733e2f5f5ee91bbd27d1e7c3dc9a31e2b35098530",
-                linux: "9bf67c309888d1d0af03b0df8872303b0e8cd730cd7e74a18408c63b928d39a9"
+                "0.4.7",
+                mac: "9ac466e54e541d183915c44706a11b3b431a37d49fd45d9136cf1c1c11bc7e9f",
+                linux: "76d943227bd3831d2eb65982c460cab623aaffcb8db014ba47fd8e4cbc28abde"
             ),
             gcqd(
                 "modeler",
-                "0.4.5",
-                mac: "64f2f749fddb145e3e45360570e1a4f9a2922036dc9ad13b5a03a42c6f3a3481",
-                linux: "7bc5aafe72e21d37f9cb2acd830c53877b0146d3c4cc3ae1e20f0fcc3dc8588d",
+                "0.4.6",
+                mac: "e75f2b486f5095dc6baefe49a80bd264f0bd392d42437f0206edbf3ba06ce13c",
+                linux: "ca722da139cd3baf4db1aed5f2bccd52e47ed284221db2ce419d4df379e92067",
                 command: "check"
             ),
             // Local-only (mutation testing on this machine); macOS arm64 is the only published archive.

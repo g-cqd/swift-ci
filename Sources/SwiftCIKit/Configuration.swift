@@ -143,13 +143,14 @@ public struct Configuration: Codable, Sendable, Equatable {
         /// without being named.
         public var lock: String?
         /// The Swift files swift-format checks (globs, relative to the root), before `exclude`. Default: a package's
-        /// layout (`Package.swift`, `Sources`, `Tests`, `Plugins`, not benchmarks or research code); everything for
+        /// layout (its root `Package.swift`, `Sources`, `Tests`, `Plugins`; not benchmarks, examples' manifests or
+        /// research code); everything for
         /// an Xcode project, whose layout is its own.
         public var include: [String]?
 
         /// `include`, or the default for `project`.
         public func formatted(for project: SwiftCIKit.Project) -> [String] {
-            include ?? (project.isXcode ? ["**"] : ["Package.swift", "Sources/**", "Tests/**", "Plugins/**"])
+            include ?? (project.isXcode ? ["**"] : ["/Package.swift", "Sources/**", "Tests/**", "Plugins/**"])
         }
         /// Rules beyond formatting for a shipped library (``Discipline``); nil (the default) runs none.
         public var discipline: Discipline?

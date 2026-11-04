@@ -133,7 +133,7 @@ struct StepsTests {
         let files = [
             "Package.swift", "Sources/A/a.swift", "Tests/AT/Fixtures/bad.swift", "Sources/Generated/G.swift",
             "Benchmarks/B.swift",
-            "development/probe.swift"
+            "development/probe.swift", "Examples/Demo/Package.swift"
         ]
         let lines = try steps(CheckID.quality, files: files, existing: [".dolly-baseline.json"])
         #expect(

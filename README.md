@@ -78,8 +78,9 @@ swift run --package-path swift-ci swift-ci run linux-debug
 `swift-ci baseline` writes each analyzer's current findings to `.ci/baselines/`, to adopt the gate on a codebase with
 a backlog: from then on only a new finding fails.
 
-Paths inside the configuration are relative to the repository root. Formatter configurations (`.swift-format`,
-`.swiftlint.yml`, `.swiftformat`) stay at the root, where Xcode, editors and the tools find them.
+Paths inside the configuration are relative to the package's directory: the repository root, or `package-path` (see
+[Several packages in one repository](#several-packages-in-one-repository)). Formatter configurations (`.swift-format`,
+`.swiftlint.yml`, `.swiftformat`) stay there, where Xcode, editors and the tools find them.
 
 ## What runs when
 

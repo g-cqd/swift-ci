@@ -110,11 +110,10 @@ public struct Executor {
             guard FileManager.default.fileExists(atPath: base.path) else {
                 throw SwiftCIError("discipline.forceUnwrap needs the project's .swift-format")
             }
-            let strict = root.appendingPathComponent(Paths.root + "/strict.swift-format")
-            try FileManager.default.createDirectory(
-                at: strict.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
+            // Outside the project: the check writes nothing into the tree it checks.
+            let strict = FileManager.default.temporaryDirectory
+                .appendingPathComponent("swift-ci-strict-\(UUID().uuidString).swift-format")
+            defer { try? FileManager.default.removeItem(at: strict) }
             try Discipline.strictConfiguration(from: try Data(contentsOf: base)).write(to: strict)
             do {
                 try Shell.run(

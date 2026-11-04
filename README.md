@@ -153,7 +153,8 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
   "commands": [
     { "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] },
     { "id": "self-analysis", "run": "swift run tool analyze Sources", "after": "linux-debug" },  // in that job, warm
-    { "id": "full", "run": ".ci/full-bundle.sh", "after": "archive-macos", "archives": true }   // published too
+    { "id": "full", "run": ".ci/full-bundle.sh", "after": "archive-macos", "archives": true },  // published too
+    { "id": "models", "tla": { "models": "docs/formal" }, "after": "macos-debug" }   // TLA+ models, with TLC
   ],
   "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
 }
@@ -234,6 +235,13 @@ the swift-format check's, reported once, there.
 A package's `.build` may be a symbolic link to a directory outside the sources. When its target is gone, SwiftPM fails
 with "The file “<package>” couldn’t be saved in the folder “<parent>”"; before it runs SwiftPM, swift-ci recreates the
 target and says so.
+
+A command with `tla` instead of `run` checks TLA+ models with TLC (the pinned `tla2tools.jar`, run with Java, so on
+a runner that has it: macOS, or a Linux runner without the Swift container). Every `<Module>.cfg` in the directory
+must hold; every `<Module>.buggy.cfg` is a control that must be refuted, which shows the checker can fail. Each run has
+a state directory of its own outside the repository: TLC's default is named after the current second, beside the
+specification, so a model that ends within a second made the next one fail. The verdict comes from TLC's error line,
+not its exit status alone: an invariant false in the initial state exits 151, as a configuration error does.
 
 `platforms` builds each scheme with `xcodebuild build` for each platform, with the selected Xcode's toolchain (a
 swift.org toolchain has no iOS, tvOS, watchOS or visionOS standard library), unsigned, without the macro and plugin

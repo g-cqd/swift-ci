@@ -40,6 +40,8 @@ public enum Step: Sendable, Equatable {
     case discipline(Discipline)
     /// swift-format over these files with the project's `.swift-format`, adapted to the platform (``SwiftFormatLint``).
     case swiftFormat(files: [String])
+    /// TLA+ models checked with TLC (``TLAModels``).
+    case tla(title: String, models: TLAModels)
 
     public var title: String {
         switch self {
@@ -51,6 +53,7 @@ public enum Step: Sendable, Equatable {
             case .file(let path, _): "Write \(path)"
             case .discipline: "Discipline · Shipped Code & Tests"
             case .swiftFormat(let files): "swift-format (\(files.count) files)"
+            case .tla(let title, _): title
         }
     }
 }
@@ -153,17 +156,22 @@ public struct StepPlanner: Sendable {
         fileExists: (String) -> Bool = { _ in false },
         local: Bool = false
     ) throws -> [Step] {
-        let before = configuration.commands.filter { $0.before.contains(id) }
-            .map { Step.shell(title: $0.title ?? $0.id, script: $0.run) }
+        let before = configuration.commands.filter { $0.before.contains(id) }.map(Self.step)
         // The commands that run at the end of this one's job.
-        let after = configuration.commands.filter { $0.after == id }
-            .map { Step.shell(title: $0.title ?? $0.id, script: $0.run) }
+        let after = configuration.commands.filter { $0.after == id }.map(Self.step)
         return try before + own(id, swiftFiles: swiftFiles, fileExists: fileExists, local: local) + after
+    }
+
+    /// A command's step: its shell command, or the built-in it names.
+    static func step(_ command: Configuration.Command) -> Step {
+        let title = command.title ?? command.id
+        if let models = command.tla { return .tla(title: title, models: models) }
+        return .shell(title: title, script: command.run)
     }
 
     func own(_ id: String, swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
         if let command = configuration.commands.first(where: { $0.id == id }) {
-            return [.shell(title: command.title ?? command.id, script: command.run)]
+            return [Self.step(command)]
         }
         switch id {
             case CheckID.quality: return try quality(swiftFiles: swiftFiles, fileExists: fileExists, local: local)

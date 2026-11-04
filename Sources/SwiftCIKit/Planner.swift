@@ -261,6 +261,9 @@ public struct Planner: Sendable {
             throw SwiftCIError("commands: id '\(command.id)' is used twice or names a built-in check")
         }
         for command in configuration.commands {
+            guard command.run.isEmpty != (command.tla == nil) else {
+                throw SwiftCIError("commands.\(command.id): needs run or tla, exactly one of them")
+            }
             guard command.after == nil || command.before.isEmpty else {
                 throw SwiftCIError("commands.\(command.id): before and after cannot be combined")
             }

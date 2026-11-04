@@ -93,6 +93,9 @@ public struct Executor {
                 try contents.write(to: url, atomically: true, encoding: .utf8)
             case .swiftFormat(let files):
                 try lint(files, dryRun: dryRun)
+            case .tla(_, let models):
+                if dryRun { return print("tlc \(models.models)/*.cfg (tla2tools \(TLC.version))") }
+                try check(models)
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)
@@ -176,6 +179,77 @@ public struct Executor {
             )
         }
         print("discipline: clean (\(shipped.joined(separator: ", ")))")
+    }
+
+    // MARK: TLA+
+
+    /// Every model of the directory, each in a state directory of its own; every verdict is printed before the step
+    /// fails.
+    func check(_ tla: TLAModels) throws {
+        let directory = root.appendingPathComponent(tla.models)
+        let models = TLC.models((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
+        guard !models.isEmpty else { throw SwiftCIError("tla: no .cfg model in \(tla.models)") }
+        let java = try Self.java()
+        let jar = try installTLC()
+        let states = FileManager.default.temporaryDirectory.appendingPathComponent("swift-ci-tlc-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: states) }
+        var failed: [String] = []
+        for model in models {
+            let run = try Shell.combinedOutput(
+                TLC.arguments(
+                    java: java,
+                    jar: jar.path,
+                    model: model,
+                    states: states.appendingPathComponent(model.name).path
+                ),
+                directory: directory
+            )
+            switch TLC.verdict(mustFail: model.mustFail, status: run.status, output: run.output) {
+                case .held(let states): print("[OK] \(model.name): \(states)")
+                case .refutedAsItMust(let error): print("[OK] \(model.name) is refuted, as it must be: \(error)")
+                case .failed(let reason):
+                    print("[FAIL] \(model.name): \(reason)")
+                    print(
+                        run.output.split(separator: "\n", omittingEmptySubsequences: false).suffix(30)
+                            .joined(separator: "\n")
+                    )
+                    failed.append(model.name)
+            }
+            fflush(nil)
+        }
+        guard failed.isEmpty else {
+            throw SwiftCIError(
+                "tla: \(failed.count) of \(models.count) model(s) failed: \(failed.joined(separator: ", "))"
+            )
+        }
+    }
+
+    /// `$JAVA_HOME/bin/java`, else `java` on the path, checked to run (macOS has a `java` that only asks for a JDK).
+    static func java() throws -> String {
+        let home = ProcessInfo.processInfo.environment["JAVA_HOME"].map { "\($0)/bin/java" }
+        let java = home.flatMap { FileManager.default.isExecutableFile(atPath: $0) ? $0 : nil } ?? "java"
+        guard (try? Shell.combinedOutput([java, "-version"]))?.status == 0 else {
+            throw SwiftCIError("tla: TLC needs Java 11 or later (JAVA_HOME, or java on the path)")
+        }
+        return java
+    }
+
+    /// The pinned `tla2tools.jar` in the tool cache, downloaded and checked once.
+    func installTLC() throws -> URL {
+        let jar = toolCache.appendingPathComponent("tla2tools-\(TLC.version).jar")
+        if FileManager.default.fileExists(atPath: jar.path), try Shell.sha256(of: jar) == TLC.sha256 { return jar }
+        try FileManager.default.createDirectory(at: toolCache, withIntermediateDirectories: true)
+        let part = toolCache.appendingPathComponent("tla2tools-\(TLC.version)-\(UUID().uuidString).part")
+        defer { try? FileManager.default.removeItem(at: part) }
+        print("swift-ci: downloading tla2tools \(TLC.version)")
+        try Download.fetch(TLC.url, to: part)
+        let actual = try Shell.sha256(of: part)
+        guard actual == TLC.sha256 else {
+            throw SwiftCIError("tla2tools.jar: the SHA-256 is \(actual), not the pinned \(TLC.sha256)")
+        }
+        try? FileManager.default.removeItem(at: jar)
+        try FileManager.default.moveItem(at: part, to: jar)
+        return jar
     }
 
     // MARK: Tools

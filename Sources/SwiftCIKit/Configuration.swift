@@ -214,6 +214,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var title: String?
         /// A shell command, run from the root.
         public var run: String
+        /// TLA+ models checked with TLC instead of a shell command (``TLAModels``).
+        public var tla: TLAModels?
         public var os: OS = .linux
         public var cadence: [Trigger] = Array(Trigger.everyChange).sorted()
         /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
@@ -234,11 +236,13 @@ public struct Configuration: Codable, Sendable, Equatable {
             archives: Bool = false,
             after: String? = nil,
             before: [String] = [],
-            title: String? = nil
+            title: String? = nil,
+            tla: TLAModels? = nil
         ) {
             self.id = id
             self.title = title
             self.run = run
+            self.tla = tla
             self.os = os
             self.cadence = cadence
             self.archives = archives
@@ -344,7 +348,9 @@ enum Defaults {
         var root = try encode(Configuration())
         root["release?"] = try encode(Configuration.Release())
         root["documentation?"] = ["warningsAsErrors": true]
-        root["commands[]"] = try encode(Configuration.Command(id: "", run: ""))
+        var command = try encode(Configuration.Command(id: "", run: ""))
+        command["tla?"] = try encode(TLAModels())
+        root["commands[]"] = command
         var quality = root["quality"] as? [String: Any] ?? [:]
         quality["discipline?"] = try encode(Discipline())
         root["quality"] = quality
@@ -364,7 +370,7 @@ enum Defaults {
         sample.quality.discipline = Discipline()
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
-        sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [], title: "")]
+        sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [], title: "", tla: TLAModels())]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]
         return sample
     }

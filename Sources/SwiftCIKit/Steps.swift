@@ -62,6 +62,8 @@ public enum Paths {
     public static let distribution = root + "/dist"
     /// LeakSanitizer suppressions of the Linux AddressSanitizer runs.
     public static let leakSuppressions = root + "/lsan-suppressions.txt"
+    /// ThreadSanitizer suppressions of the Linux ThreadSanitizer runs.
+    public static let raceSuppressions = root + "/tsan-suppressions.txt"
 }
 
 /// What LeakSanitizer must not report on Linux, each seen on swift:6.4.1-noble and not the project's:
@@ -80,6 +82,18 @@ public let leakSuppressions = """
     leak:Foundation7ProcessC3run
     # swift-ci: Swift 6.4.1 Foundation leaks the read buffer for an empty file.
     leak:FoundationEssentials17readBytesFromFile
+
+    """
+
+/// What ThreadSanitizer must not report on Linux (swift:6.4.1-noble), and is not the project's: `Synchronization.Mutex` is not
+/// modelled, so an access to the value a `Mutex` guards is reported as a Swift access race, with or without the lock. A
+/// pool of buffers behind a `Mutex` and eight threads taking from it and giving back reproduce it with no other code.
+/// aemi's `ByteBufferPool` is such a pool, used by every encoder of AemiJSON, so any program that encodes on two threads
+/// reports it, and a test that runs the program fails with the sanitizer's exit code (66). The pattern is the pool's
+/// name, so a race anywhere else is still reported.
+public let raceSuppressions = """
+    # swift-ci: aemi's ByteBufferPool keeps its buffers in a Synchronization.Mutex, which ThreadSanitizer does not model.
+    race:AemiKernel14ByteBufferPool
 
     """
 
@@ -164,7 +178,12 @@ public struct StepPlanner: Sendable {
                         .sanitizer("address"),
                         extraEnvironment: ["LSAN_OPTIONS": "suppressions=\(absolute(Paths.leakSuppressions))"]
                     )
-            case CheckID.linuxThread: return package(.sanitizer("thread"))
+            case CheckID.linuxThread:
+                return [.file(path: Paths.raceSuppressions, contents: raceSuppressions)]
+                    + package(
+                        .sanitizer("thread"),
+                        extraEnvironment: ["TSAN_OPTIONS": "suppressions=\(absolute(Paths.raceSuppressions))"]
+                    )
             case CheckID.consumer: return package(.debug, environment: [:])
             case CheckID.macOSDebug: return project.isXcode ? try xcode(.debug) : package(.debug, coverage: true)
             case CheckID.macOSRelease: return project.isXcode ? try xcode(.release) : package(.release)

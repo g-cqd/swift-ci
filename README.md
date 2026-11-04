@@ -249,6 +249,12 @@ or suppression-file syntax. Keep a standalone reproduction and removal condition
 in the consuming repository. These additions apply only to Linux ASan, alongside
 the documented runtime defaults; all other leak reports remain enabled.
 
+The Linux ThreadSanitizer run suppresses one report, `race:AemiKernel14ByteBufferPool`: a pool of buffers behind a
+`Synchronization.Mutex`, which ThreadSanitizer (Swift 6.4.1, Linux) does not model, so it reports every access to the
+guarded value as a Swift access race. A program of a few lines with a `Mutex`-guarded array and eight threads reproduces it,
+and it makes any command-line run that encodes JSON on two threads exit 66 under the sanitizer, with its tests failing on
+the exit code. A race anywhere else is still reported.
+
 Linux executable archives link with an `$ORIGIN` runtime search path so their
 bundled Swift libraries are discoverable after extraction. The root-action CI
 smoke runs the real archive command in a disposable container, verifies its

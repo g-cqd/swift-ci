@@ -48,6 +48,15 @@ struct StepsTests {
                 && leakSuppressions.contains("leak:Foundation7ProcessC3run\n")
                 && leakSuppressions.contains("leak:FoundationEssentials17readBytesFromFile\n")
         )
+        // On Linux, ThreadSanitizer is told about aemi's Mutex-guarded buffer pool, which it does not model, and nothing else.
+        #expect(
+            try steps(CheckID.linuxThread) == [
+                "write .build/swift-ci/tsan-suppressions.txt",
+                "TSAN_OPTIONS=suppressions=.build/swift-ci/tsan-suppressions.txt swift build --build-tests --sanitize=thread",
+                "TSAN_OPTIONS=suppressions=.build/swift-ci/tsan-suppressions.txt swift test --skip-build --sanitize=thread"
+            ]
+        )
+        #expect(raceSuppressions.contains("race:AemiKernel14ByteBufferPool\n"))
         #expect(
             try steps(CheckID.macOSThread) == [
                 "swift build --build-tests --sanitize=thread", "swift test --skip-build --sanitize=thread"

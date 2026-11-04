@@ -107,7 +107,10 @@ runs:
         CONFIG: ${{ inputs.config }}
       run: |
         set -uo pipefail
+        # The checkout's root as well as the package directory: git trusts the worktree's top level, which is not
+        # the working directory when the package is in a subdirectory of the repository.
         git config --global --add safe.directory "$PWD" 2> /dev/null || true
+        git config --global --add safe.directory "$GITHUB_WORKSPACE" 2> /dev/null || true
         read -r -a words <<< "$ARGUMENTS"
         if [ "$RUNNER_OS" = macOS ]; then
           # Into a file: an orphaned child then holds a file, not the runner's log pipe, and cannot wedge the job.

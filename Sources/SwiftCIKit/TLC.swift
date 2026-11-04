@@ -86,7 +86,8 @@ public enum TLC {
         let error = lines.first { $0.hasPrefix("Error:") }
         switch (mustFail, status, violation) {
             case (false, 0, _):
-                return .held(lines.first { $0.contains("distinct states found") } ?? "no error found")
+                // The last: a long run prints progress lines with the same words before the final count.
+                return .held(lines.last { $0.contains("distinct states found") } ?? "no error found")
             case (false, _, let violation?):
                 return .failed(violation)
             case (true, 0, _):

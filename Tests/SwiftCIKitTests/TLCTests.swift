@@ -28,7 +28,8 @@ struct TLCTests {
     /// Outputs and exit statuses as TLC 1.7.4 gives them.
     @Test func `the verdict is read from TLC's error line, not only its exit status`() {
         let held =
-            "Model checking completed. No error has been found.\n49188 states generated, 19682 distinct states found, 0 states left on queue.\n"
+            "Progress(2): 232,263 states generated (232,263 s/min), 213,260 distinct states found (213,260 ds/min)\n"
+            + "Model checking completed. No error has been found.\n49188 states generated, 19682 distinct states found, 0 states left on queue.\n"
         let invariant = "Error: Invariant SnapshotIsReference is violated.\nError: The behavior up to this point is:\n"
         // An invariant false in the initial state: exit status 151, and no "is violated".
         let initial = "Starting...\nError: The invariant of ResyncIsFreshParse is equal to FALSE\nFinished in 00s\n"

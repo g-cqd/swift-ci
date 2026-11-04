@@ -29,6 +29,8 @@ public enum TLC {
             + ["java", "/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]
     }
 
+    static let fingerprintSet = "tlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet"
+
     /// One model: a `.cfg` file and the module it checks.
     public struct Model: Sendable, Equatable {
         /// The configuration's name without `.cfg`: `LineSplitter`, `LineSplitter.buggy`.
@@ -49,9 +51,16 @@ public enum TLC {
     }
 
     /// The command line of one run, from the models' directory.
+    ///
+    /// The off-heap fingerprint set: with the default one (`MSBDiskFPSet` with several workers), a model that holds
+    /// fails about one run in four with "TLC threw an unexpected exception … ArithmeticException: Division by zero",
+    /// thrown by `AbstractChecker.reportSuccess` (a BigDecimal division in the collision-probability report) after a
+    /// failed flush of the set. Seen on AemiProtobuf's GroupSkip: 4 of 16 runs failed with the default, 0 of 16 with
+    /// this one.
     public static func arguments(java: String, jar: String, model: Model, states: String) -> [String] {
         [
-            java, "-XX:+UseParallelGC", "-cp", jar, "tlc2.TLC", "-config", "\(model.name).cfg", "-metadir", states,
+            java, "-XX:+UseParallelGC", "-D\(fingerprintSet)", "-cp", jar, "tlc2.TLC", "-config", "\(model.name).cfg",
+            "-metadir", states,
             "-workers", "auto", "-cleanup", "\(model.module).tla"
         ]
     }

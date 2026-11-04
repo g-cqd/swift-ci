@@ -13,7 +13,8 @@ struct TLCTests {
         #expect(
             TLC.arguments(java: "java", jar: "/c/tla2tools.jar", model: models[0], states: "/tmp/s/A.buggy")
                 == [
-                    "java", "-XX:+UseParallelGC", "-cp", "/c/tla2tools.jar", "tlc2.TLC", "-config", "A.buggy.cfg",
+                    "java", "-XX:+UseParallelGC", "-Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet", "-cp",
+                    "/c/tla2tools.jar", "tlc2.TLC", "-config", "A.buggy.cfg",
                     "-metadir", "/tmp/s/A.buggy", "-workers", "auto", "-cleanup", "A.tla"
                 ]
         )

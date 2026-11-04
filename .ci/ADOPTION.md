@@ -6,7 +6,7 @@ whose success does not mean CI succeeded.
 
 ## Migrated
 
-All eleven callers use `.ci/action.json` and pin swift-ci `cdc970c` (full SHA in each
+All eleven callers use `.ci/action.json` and pin swift-ci `09fd96d` (full SHA in each
 workflow). Each repository's `.ci/README.md`, where present, explains its special
 checks and exceptions. The CLI uses the same configuration locally and in CI.
 
@@ -47,6 +47,37 @@ checks and exceptions. The CLI uses the same configuration locally and in CI.
   than depending on another job's tree. Its leftover-helper check now fails
   explicitly instead of relying on `! command` with errexit (which does not fail
   the shell).
+
+## Consolidation audit (swift-ci `09fd96d`)
+
+Checked from each repository's `origin/main`, not local trees:
+
+- All eleven callers pin `09fd96d`, with the same triggers (push, pull request, merge queue, schedule, dispatch),
+  a `Checks` caller job and validated `.ci/action.json`. Tools and litmus also run on `v*` tags; libraries do not
+  publish. Schedules: 03:17 daily (Protobuf Mondays only, with a 168-hour idle window); swift-ci and litmus 03:41.
+- Every repository carries the same executable `.ci/swift-ci` (byte-identical; `validate` and `plan` refuse a
+  stale or edited one). It builds the pinned swift-ci once and runs it, so hooks, local runs and CI share one tool
+  lock. Verified end to end: a cold cache fetched and built `09fd96d` from GitHub; all eleven validate through it.
+- Retired duplicate gates: `Scripts/ci-local.sh` and `lint-format.sh` (five tools; `localChecks` replaces them,
+  and the old script skipped the family analyzers), `Scripts/analyzers.sh` (JSON, Regex; a separate installer
+  outside the tool lock), `.adbuildtools.json` (JSON, Regex) and Protobuf's own analyzer pins, which were older
+  than CI's (deadwood 0.13.0, dolly 0.13.0, arcleak 0.15.0, fcheck 0.4.0, modeler 0.4.0 locally against 0.15.2,
+  0.14.2, 0.17.2, 0.4.6, 0.4.5). Its modeler for the model checks is now 0.4.5 too (0 findings).
+- Restored a gate the migration had dropped: JSON and Regex ran aemi's `swift package lint` in their old CI
+  (force unwrap and `try!` in shipped targets, `strtod`, inline PRNGs, untyped `#expect(throws:)`, wall-clock
+  assertions). It is now `quality.discipline`, in swift-ci, tested, and ran clean in both hosted quality jobs.
+- Baselines all live in `.ci/baselines/` (JSON and Protobuf moved theirs from the root).
+- aemi keeps `Scripts/analyzers.sh` and its old reusable workflows only for callers outside this family
+  (`swift-search`, `Atelier` still use them).
+- Local mutation testing works for the first time: litmus is pinned and checksum-verified, writes outside the
+  project, and is opt-in; with `.ci/baselines/litmus.json` only a new survivor fails (verified: 218 mutants,
+  74.31 %, 0 new, 56 accepted). `--help` on a subcommand no longer runs it.
+- All twelve CI runs on these commits completed green.
+
+Open: fcheck `v0.4.7` is unpublished — its first heavy (tag) run crashed the macOS release/ASan/TSan test
+processes (the 600-level nesting test, consistent with stack exhaustion; not reproduced locally on Swift 6.4.2),
+and the gate correctly withheld the release. A skipped advisory job still shows `${{ matrix.title }}` as its
+name in repositories without an advisory toolchain (GitHub does not evaluate a skipped matrix job's name).
 
 ## Latest completed verification
 

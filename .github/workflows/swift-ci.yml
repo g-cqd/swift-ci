@@ -27,8 +27,14 @@ name: Swift CI
 on:
   workflow_call:
     inputs:
+      package-path:
+        description: >-
+          The package's directory, relative to the repository root (a repository holding several packages calls this
+          workflow once per package). Its `.ci/action.json` configures it; caches, archives and runs are scoped to it.
+        type: string
+        default: "."
       config:
-        description: The configuration file, relative to the repository root.
+        description: The configuration file, relative to the package's directory.
         type: string
         default: .ci/action.json
       plan-runner:
@@ -53,7 +59,7 @@ env:
   AEMI_TYPECHECK_BUDGET_MS: "250"
 
 concurrency:
-  group: swift-ci-${{ github.workflow }}-${{ github.ref }}
+  group: swift-ci-${{ github.workflow }}-${{ github.ref }}-${{ inputs.package-path }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule' }}
 
 # Every job checks out this repository at the commit of this workflow the caller pinned (`job.workflow_sha`) and runs
@@ -71,6 +77,7 @@ jobs:
       has-linux: ${{ steps.plan.outputs.has-linux }}
       has-macos: ${{ steps.plan.outputs.has-macos }}
       publish: ${{ steps.plan.outputs.publish }}
+      scope: ${{ steps.scope.outputs.scope }}
     steps:
       # Credentials kept (read-only token): the CLI fetches the commit a change is compared with, in a private
       # repository too.
@@ -91,6 +98,15 @@ jobs:
         with:
           command: plan
           config: ${{ inputs.config }}
+          working-directory: ${{ inputs.package-path }}
+      # Artifact names of this package's run: none for the root package, `<path>-` for one in a directory.
+      - name: Plan · Name Artifacts
+        id: scope
+        env:
+          PACKAGE_PATH: ${{ inputs.package-path }}
+        run: |
+          if [ "$PACKAGE_PATH" = . ]; then scope=""; else scope="$(printf '%s' "$PACKAGE_PATH" | tr -c 'A-Za-z0-9._-' '-')-"; fi
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
 
   linux:
     needs: plan
@@ -112,7 +128,7 @@ jobs:
       - name: Cache · Compute Identity
         id: key
         env:
-          PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
+          PREFIX: ${{ matrix.cache }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path), format('{0}/**/Package.resolved', inputs.package-path), format('{0}/.swift-version', inputs.package-path), format('{0}/.ci/tools.lock.json', inputs.package-path), format('{0}/{1}', inputs.package-path, inputs.config)) }}
           REVISION: ${{ github.sha }}
         run: |
           echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
@@ -122,7 +138,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            .build
+            ${{ inputs.package-path == '.' && '.build' || format('{0}/.build', inputs.package-path) }}
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
           restore-keys: |
@@ -140,21 +156,22 @@ jobs:
         with:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
+          working-directory: ${{ inputs.package-path }}
       - name: Cache · Save SwiftPM
         if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Not swift-ci's own checkout and build, which its action caches by the hash of its source.
           path: |
-            .build
+            ${{ inputs.package-path == '.' && '.build' || format('{0}/.build', inputs.package-path) }}
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
       - name: Artifacts · Upload Archives
         if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: swift-ci-${{ matrix.id }}
-          path: .build/swift-ci/dist/*.tar.gz*
+          name: swift-ci-${{ needs.plan.outputs.scope }}${{ matrix.id }}
+          path: ${{ inputs.package-path }}/.build/swift-ci/dist/*.tar.gz*
           if-no-files-found: error
           retention-days: 7
 
@@ -190,7 +207,7 @@ jobs:
       - name: Cache · Compute Identity
         id: key
         env:
-          PREFIX: ${{ matrix.cache }}-${{ hashFiles('Package.swift', 'Package.resolved', '**/Package.resolved', '.swift-version', '.ci/action.json', '.ci/tools.lock.json', inputs.config) }}
+          PREFIX: ${{ matrix.cache }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path), format('{0}/**/Package.resolved', inputs.package-path), format('{0}/.swift-version', inputs.package-path), format('{0}/.ci/tools.lock.json', inputs.package-path), format('{0}/{1}', inputs.package-path, inputs.config)) }}
           REVISION: ${{ github.sha }}
         run: |
           echo "key=$PREFIX-$REVISION" >> "$GITHUB_OUTPUT"
@@ -200,7 +217,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            .build
+            ${{ inputs.package-path == '.' && '.build' || format('{0}/.build', inputs.package-path) }}
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
           restore-keys: |
@@ -218,29 +235,30 @@ jobs:
         with:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}
+          working-directory: ${{ inputs.package-path }}
       - name: Cache · Save SwiftPM
         if: ${{ success() && steps.cache.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Not swift-ci's own checkout and build, which its action caches by the hash of its source.
           path: |
-            .build
+            ${{ inputs.package-path == '.' && '.build' || format('{0}/.build', inputs.package-path) }}
             !.build/swift-ci-src
           key: ${{ steps.key.outputs.key }}
       - name: Artifacts · Upload Archives
         if: ${{ matrix.archives }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: swift-ci-${{ matrix.id }}
-          path: .build/swift-ci/dist/*.tar.gz*
+          name: swift-ci-${{ needs.plan.outputs.scope }}${{ matrix.id }}
+          path: ${{ inputs.package-path }}/.build/swift-ci/dist/*.tar.gz*
           if-no-files-found: error
           retention-days: 7
       - name: Artifacts · Upload Test Results
         if: ${{ failure() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: swift-ci-results-${{ matrix.id }}
-          path: .build/swift-ci/results
+          name: swift-ci-results-${{ needs.plan.outputs.scope }}${{ matrix.id }}
+          path: ${{ inputs.package-path }}/.build/swift-ci/results
           if-no-files-found: ignore
           retention-days: 7
 
@@ -265,9 +283,10 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: .build/swift-ci-src
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Artifacts · Download Archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: swift-ci-archive-*
+          pattern: swift-ci-${{ needs.plan.outputs.scope }}archive-*
           merge-multiple: true
           path: .build/swift-ci/assets
       - name: Setup · Install Release Tools
@@ -278,8 +297,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           command: publish
-          arguments: --assets .build/swift-ci/assets --repository ${{ github.repository }}
+          arguments: --assets ${{ github.workspace }}/.build/swift-ci/assets --repository ${{ github.repository }}
           config: ${{ inputs.config }}
+          working-directory: ${{ inputs.package-path }}
 
   gate:
     name: Gate

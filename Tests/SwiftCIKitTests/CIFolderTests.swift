@@ -319,3 +319,38 @@ struct LocalChecksTests {
         }
     }
 }
+
+struct PackageInDirectoryTests {
+    /// A repository with a package in a directory: its changed files are its own, relative to it.
+    @Test func `changed files from a package in a directory are its own, relative to it`() throws {
+        let sandbox = try Sandbox(["Packages/Core/Sources/a.swift": "a\n", "Apps/App/b.swift": "b\n"])
+        func git(_ arguments: String...) throws {
+            _ = try Shell.output(["git"] + arguments, directory: sandbox.root, quiet: true)
+        }
+        try git("init", "-q")
+        try git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+        try git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
+        let base = try Shell.output(["git", "rev-parse", "HEAD"], directory: sandbox.root, quiet: true)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        try "a2\n"
+            .write(
+                to: sandbox.root.appendingPathComponent("Packages/Core/Sources/a.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+        try "b2\n".write(to: sandbox.root.appendingPathComponent("Apps/App/b.swift"), atomically: true, encoding: .utf8)
+        try git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "change")
+        let core = sandbox.root.appendingPathComponent("Packages/Core")
+        #expect(Git.changedFiles(root: core, base: base) == ["Sources/a.swift"])
+        #expect(
+            Git.changedFiles(root: sandbox.root, base: base)?.sorted() == [
+                "Apps/App/b.swift", "Packages/Core/Sources/a.swift"
+            ]
+        )
+    }
+
+    @Test func `the bootstrap reads the pin from the repository's workflows, also from a package in a directory`() {
+        #expect(Scaffold.bootstrap.contains(#"top="$(git -C "$root" rev-parse --show-toplevel"#))
+        #expect(Scaffold.bootstrap.contains(#""$top"/.github/workflows/*.yml"#))
+    }
+}

@@ -264,3 +264,17 @@ names. Renaming display labels **does change Actions check-run names**: reposito
 with required status contexts must update those contexts before adopting a naming
 revision. Use the shared `Gate` or repository aggregate gate rather than requiring
 every matrix-expanded label. Names alone do not change check coverage or cadence.
+
+## Several packages in one repository
+
+Call the reusable workflow once per package with `package-path`; each package keeps its own `.ci/action.json` and
+`.ci/swift-ci`. Runs, caches, archives and change detection are scoped to the package (a change outside it is not
+its change), so two calls in one run never cancel or overwrite each other:
+
+```yaml
+jobs:
+  core:
+    name: AtelierCore
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@<commit>
+    with: { package-path: Packages/AtelierCore }
+```

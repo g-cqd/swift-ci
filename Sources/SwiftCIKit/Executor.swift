@@ -340,7 +340,8 @@ public enum Git {
         }
         guard
             let output = try? Shell.output(
-                ["git", "diff", "--name-only", "--no-renames", base, "HEAD"],
+                // --relative: from a package in a directory, only its own files, relative to it.
+                ["git", "diff", "--name-only", "--no-renames", "--relative", base, "HEAD"],
                 directory: root,
                 quiet: true
             )

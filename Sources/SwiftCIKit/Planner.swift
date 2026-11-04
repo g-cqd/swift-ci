@@ -207,6 +207,10 @@ public struct Planner: Sendable {
                     if swift.matrix.contains(id) {
                         version = entry.version
                         install = true
+                    } else if id == CheckID.platforms {
+                        // xcodebuild for iOS, tvOS, watchOS and visionOS needs the selected Xcode's toolchain: a
+                        // swift.org toolchain for macOS has no standard library for them.
+                        version = "xcode"
                     } else if let macOS = swift.macOSVersion {
                         version = macOS
                         install = true

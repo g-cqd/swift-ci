@@ -69,6 +69,11 @@ struct PlannerTests {
         )
         #expect(tag.publish)
         #expect(!(try plan(json, .push)).publish)
+        // The platform builds use the selected Xcode's toolchain, which has the other SDKs' standard libraries; the
+        // other macOS checks install the primary version.
+        let platforms = try #require(tag.macOS.first { $0.id == CheckID.platforms })
+        #expect(!platforms.installSwift && platforms.title.hasSuffix("· macOS · Xcode toolchain"))
+        #expect(tag.macOS.filter { $0.id == CheckID.macOSDebug }.allSatisfy { $0.installSwift })
     }
 
     @Test func `a change to documentation only checks nothing, but a tag or a manual run always does`() throws {

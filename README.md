@@ -222,6 +222,11 @@ those cases. For example, AemiProtobuf's existing ASan recursion exception:
 {"swift":{"sanitizerSkips":{"address":["deeply nested input is refused at the limit"]}}}
 ```
 
+`platforms` builds each scheme with `xcodebuild build` for each platform, with the selected Xcode's toolchain (a
+swift.org toolchain has no iOS, tvOS, watchOS or visionOS standard library), unsigned, without the macro and plugin
+trust prompts, and with `SWIFT_SUPPRESS_WARNINGS=NO`: Xcode's `-suppress-warnings` for dependencies conflicts with
+the `-warnings-as-errors` of a dependency that declares `treatAllWarnings(as: .error)`, as the family's packages do.
+
 `swift.testSkips` does the same for one build mode, `debug`, `release`, `address` or `thread`, on Linux and macOS:
 for a test whose fixed deadline an unoptimized build misses, which the release tests still run. Prefer fixing the
 test; record why where the skip is.

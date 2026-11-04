@@ -94,12 +94,14 @@ struct StepsTests {
     }
 
     @Test func `platforms build every scheme for each one, and need schemes`() throws {
+        let unsigned =
+            "-skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO SWIFT_SUPPRESS_WARNINGS=NO"
         let json =
             #"{"project": {"schemes": ["Lib-Package"]}, "platforms": [{"name": "iOS"}, {"name": "watchOS", "destination": "generic/platform=watchOS,arch=arm64_32"}]}"#
         #expect(
             try steps(CheckID.platforms, json) == [
-                "xcodebuild build -scheme Lib-Package -destination generic/platform=iOS -derivedDataPath .build/swift-ci/DerivedData",
-                "xcodebuild build -scheme Lib-Package -destination generic/platform=watchOS,arch=arm64_32 -derivedDataPath .build/swift-ci/DerivedData"
+                "xcodebuild build -scheme Lib-Package -destination generic/platform=iOS -derivedDataPath .build/swift-ci/DerivedData \(unsigned)",
+                "xcodebuild build -scheme Lib-Package -destination generic/platform=watchOS,arch=arm64_32 -derivedDataPath .build/swift-ci/DerivedData \(unsigned)"
             ]
         )
         #expect(throws: SwiftCIError.self) { try steps(CheckID.platforms, #"{"platforms": [{"name": "iOS"}]}"#) }

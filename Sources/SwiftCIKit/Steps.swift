@@ -294,6 +294,14 @@ public struct StepPlanner: Sendable {
 
     // MARK: Platforms, documentation, archives
 
+    /// A platform build compiles and links, unsigned (a generic destination has no device to sign for). Packages'
+    /// macros and plugins run without the interactive trust prompt. And dependencies keep their warnings: Xcode builds
+    /// them with `-suppress-warnings`, which the driver rejects beside the `-warnings-as-errors` of a dependency that
+    /// declares `treatAllWarnings(as: .error)`, as the family's packages do ("conflicting options").
+    static let platformBuildSettings = [
+        "-skipPackagePluginValidation", "-skipMacroValidation", "CODE_SIGNING_ALLOWED=NO", "SWIFT_SUPPRESS_WARNINGS=NO"
+    ]
+
     /// Every platform with `xcodebuild build`, which knows the SDKs (a package's schemes are its products, and
     /// `<Package>-Package` builds every target).
     func platforms() throws -> [Step] {
@@ -311,7 +319,7 @@ public struct StepPlanner: Sendable {
                         at: 2
                     )
                 }
-                arguments += ["-derivedDataPath", Paths.derivedData]
+                arguments += ["-derivedDataPath", Paths.derivedData] + Self.platformBuildSettings
                 steps.append(.run(ShellCommand("Build \(scheme) for \(platform.name)", arguments)))
             }
         }

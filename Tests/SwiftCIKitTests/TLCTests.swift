@@ -19,6 +19,12 @@ struct TLCTests {
         )
     }
 
+    @Test func `Java is JAVA_HOME's, then the path's, then Homebrew's keg-only openjdk`() {
+        #expect(TLC.javaCandidates(javaHome: "/jdk").prefix(2) == ["/jdk/bin/java", "java"])
+        #expect(TLC.javaCandidates(javaHome: nil).first == "java")
+        #expect(TLC.javaCandidates(javaHome: nil).contains("/opt/homebrew/opt/openjdk/bin/java"))
+    }
+
     /// Outputs and exit statuses as TLC 1.7.4 gives them.
     @Test func `the verdict is read from TLC's error line, not only its exit status`() {
         let held =

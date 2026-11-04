@@ -23,6 +23,12 @@ public enum TLC {
         "https://github.com/tlaplus/tlaplus/releases/download/v\(version)/tla2tools.jar"
     }
 
+    /// Where Java is looked for, in order.
+    public static func javaCandidates(javaHome: String?) -> [String] {
+        (javaHome.map { ["\($0)/bin/java"] } ?? [])
+            + ["java", "/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]
+    }
+
     /// One model: a `.cfg` file and the module it checks.
     public struct Model: Sendable, Equatable {
         /// The configuration's name without `.cfg`: `LineSplitter`, `LineSplitter.buggy`.

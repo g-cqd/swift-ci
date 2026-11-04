@@ -224,12 +224,13 @@ public struct Executor {
         }
     }
 
-    /// `$JAVA_HOME/bin/java`, else `java` on the path, checked to run (macOS has a `java` that only asks for a JDK).
+    /// The first Java that runs: `$JAVA_HOME/bin/java`, `java` on the path (macOS has one that only asks for a JDK),
+    /// then Homebrew's keg-only openjdk.
     static func java() throws -> String {
-        let home = ProcessInfo.processInfo.environment["JAVA_HOME"].map { "\($0)/bin/java" }
-        let java = home.flatMap { FileManager.default.isExecutableFile(atPath: $0) ? $0 : nil } ?? "java"
-        guard (try? Shell.combinedOutput([java, "-version"]))?.status == 0 else {
-            throw SwiftCIError("tla: TLC needs Java 11 or later (JAVA_HOME, or java on the path)")
+        let environment = ProcessInfo.processInfo.environment
+        let candidates = TLC.javaCandidates(javaHome: environment["JAVA_HOME"])
+        guard let java = candidates.first(where: { (try? Shell.combinedOutput([$0, "-version"]))?.status == 0 }) else {
+            throw SwiftCIError("tla: TLC needs Java 11 or later (tried \(candidates.joined(separator: ", ")))")
         }
         return java
     }

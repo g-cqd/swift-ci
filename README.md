@@ -143,7 +143,7 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     "formatters": "auto",              // auto: .swift-format, .swiftlint.yml, .swiftformat at the root
     "include": ["Package.swift", "Sources/**", "Tests/*/*.swift"],   // what swift-format checks (default: all)
     "exclude": ["**/Fixtures/**"],     // files swift-format skips
-    "local": ["litmus"],               // run by `swift-ci local` only
+    "local": ["litmus"],               // opt-in, `swift-ci local` only (default: none)
     "lock": "tools/lock.json"          // a lock elsewhere than .ci/tools.lock.json
   },
   "release": { "executables": ["tool"], "notes": "release-notes/{tag}.md" },

@@ -85,10 +85,51 @@ public struct Executor {
                     withIntermediateDirectories: true
                 )
                 try contents.write(to: url, atomically: true, encoding: .utf8)
+            case .discipline(let discipline):
+                if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
+                try check(discipline)
             case .archive(let executable, let os):
                 if dryRun { return print("archive \(executable) into \(Paths.distribution)") }
                 try archive(executable, os: os)
         }
+    }
+
+    // MARK: Discipline
+
+    /// The textual rules, then swift-format's force-unwrap rules over the shipped targets; every finding is reported
+    /// before the step fails.
+    func check(_ discipline: Discipline) throws {
+        let findings = discipline.scan(root: root)
+        for finding in findings { print(finding) }
+        var failed = !findings.isEmpty
+        let shipped = discipline.shipped.filter {
+            FileManager.default.fileExists(atPath: root.appendingPathComponent($0).path)
+        }
+        if discipline.forceUnwrap, !shipped.isEmpty {
+            let base = root.appendingPathComponent(".swift-format")
+            guard FileManager.default.fileExists(atPath: base.path) else {
+                throw SwiftCIError("discipline.forceUnwrap needs the project's .swift-format")
+            }
+            let strict = root.appendingPathComponent(Paths.root + "/strict.swift-format")
+            try FileManager.default.createDirectory(
+                at: strict.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try Discipline.strictConfiguration(from: try Data(contentsOf: base)).write(to: strict)
+            do {
+                try Shell.run(
+                    ["swift", "format", "lint", "--strict", "--configuration", strict.path, "--recursive"] + shipped,
+                    directory: root
+                )
+            } catch {
+                print("swift-ci: force unwrap or try! in shipped code (\(error))")
+                failed = true
+            }
+        }
+        if failed {
+            throw SwiftCIError("discipline: \(findings.count) textual finding(s) or force unwraps in shipped code")
+        }
+        print("discipline: clean (\(shipped.joined(separator: ", ")))")
     }
 
     // MARK: Tools

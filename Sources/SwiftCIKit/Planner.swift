@@ -1,5 +1,7 @@
 /// The built-in checks. A configuration's `checks` overrides their cadence; `commands` add its own.
 public enum CheckID {
+    // The Linux and macOS checks are declared in parallel on purpose: one stable id per check and OS.
+    // @dl:disable near-clone
     /// Formatters, linters and the g-cqd analyzers, on Linux: they read source and need no build.
     public static let quality = "quality"
     public static let linuxDebug = "linux-debug"
@@ -11,6 +13,7 @@ public enum CheckID {
     public static let macOSRelease = "macos-release"
     public static let macOSAddress = "macos-address"
     public static let macOSThread = "macos-thread"
+    // @dl:enable near-clone
     /// A build and test with none of `swift.environment`: what a consumer of the package gets.
     public static let consumer = "consumer"
     /// Every `platforms` entry, one after the other on one runner.
@@ -19,6 +22,24 @@ public enum CheckID {
     /// The release archives of `release.executables`, one per OS.
     public static let archiveLinux = "archive-linux"
     public static let archiveMacOS = "archive-macos"
+    /// In `localChecks`: this machine's debug tests.
+    public static let hostDebug = "debug"
+
+    /// `localChecks` for this machine: `debug` becomes its debug check, and a command attached to a check in the list
+    /// is left out (it runs with that check already).
+    public static func local(_ checks: [String], commands: [Configuration.Command] = []) -> [String] {
+        #if os(macOS)
+            let host = macOSDebug
+        #else
+            let host = linuxDebug
+        #endif
+        let ids = checks.map { $0 == hostDebug ? host : $0 }
+        return ids.filter { id in
+            guard let command = commands.first(where: { $0.id == id }) else { return true }
+            let hosts = command.before + (command.after.map { [$0] } ?? [])
+            return !hosts.contains(where: ids.contains)
+        }
+    }
 
     /// Stable CLI/configuration IDs are separate from the human-readable Actions vocabulary.
     public static func title(for id: String) -> String {
@@ -44,6 +65,8 @@ struct Check: Sendable {
     let cadence: Set<Trigger>
     let applies: @Sendable (Project, Configuration) -> Bool
 
+    // One catalog row per check and OS, kept parallel so each OS's cadence reads side by side.
+    // @dl:disable structural-clone
     static let catalog: [Check] = [
         Check(id: CheckID.quality, os: .linux, cadence: Trigger.everyChange) { _, _ in true },
         Check(id: CheckID.linuxDebug, os: .linux, cadence: Trigger.everyChange) { project, _ in project.linux },
@@ -70,6 +93,7 @@ struct Check: Sendable {
             !(configuration.release?.executables.isEmpty ?? true)
         }
     ]
+    // @dl:enable structural-clone
 }
 
 /// One job of a plan: a check on one runner with one toolchain. The workflow turns each into a matrix entry and runs
@@ -225,6 +249,10 @@ public struct Planner: Sendable {
         for id in configuration.swift.matrix
         where !known.contains(id) && !configuration.commands.contains(where: { $0.id == id }) {
             throw SwiftCIError("swift.matrix: no check or command '\(id)'")
+        }
+        let ids = known.union(configuration.commands.map(\.id))
+        for id in configuration.localChecks where id != CheckID.hostDebug && !ids.contains(id) {
+            throw SwiftCIError("localChecks: no check or command '\(id)'")
         }
         var seen = known
         for command in configuration.commands where !seen.insert(command.id).inserted {

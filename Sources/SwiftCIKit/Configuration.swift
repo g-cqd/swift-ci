@@ -31,6 +31,9 @@ public struct Configuration: Codable, Sendable, Equatable {
     /// Skip a scheduled run when the newest commit is older than this many hours; nil disables the idle skip.
     /// Match a weekly cron with 168 rather than the default daily window of 24.
     public var scheduledMaxCommitAgeHours: Double? = 24
+    /// What `swift-ci local` (and `.ci/swift-ci local`) runs without arguments: check or command ids; `debug` is this
+    /// machine's debug tests (macos-debug on a Mac, linux-debug on Linux).
+    public var localChecks: [String] = ["quality", "debug"]
     /// Paths a change can touch and still need no check (for push, pull-request and merge-queue triggers).
     public var documentationOnlyPaths: [String] = ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
 
@@ -129,8 +132,10 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var paths: [String] = []
         /// The g-cqd analyzers run from their pinned releases, in this order.
         public var analyzers: [String] = ["deadwood", "dolly", "arcleak"]
-        /// Tools run only by `swift-ci local quality`, never in CI (for now: litmus, which takes long).
-        public var local: [String] = ["litmus"]
+        /// Tools run only by `swift-ci local quality`, never in CI (for now: `litmus`, mutation testing, which takes
+        /// minutes). Opt-in: none by default, so the default local gate stays fast. With `.ci/baselines/litmus.json`
+        /// only a new surviving mutant fails; without one, every survivor does.
+        public var local: [String] = []
         /// Formatters and linters: `auto` runs the ones whose configuration file is at the root
         /// (`.swift-format`, `.swiftlint.yml`, `.swiftformat`); a list runs exactly those.
         public var formatters: Formatters = .auto
@@ -146,6 +151,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public func formatted(for project: SwiftCIKit.Project) -> [String] {
             include ?? (project.isXcode ? ["**"] : ["Package.swift", "Sources/**", "Tests/**", "Plugins/**"])
         }
+        /// Rules beyond formatting for a shipped library (``Discipline``); nil (the default) runs none.
+        public var discipline: Discipline?
         /// Files the formatters skip (fixtures written to be badly formatted, generated code).
         public var exclude: [String] = ["**/Fixtures/**", "**/Generated/**", ".build/**"]
 
@@ -328,6 +335,9 @@ enum Defaults {
         root["release?"] = try encode(Configuration.Release())
         root["documentation?"] = ["warningsAsErrors": true]
         root["commands[]"] = try encode(Configuration.Command(id: "", run: ""))
+        var quality = root["quality"] as? [String: Any] ?? [:]
+        quality["discipline?"] = try encode(Discipline())
+        root["quality"] = quality
         return root
     }
 
@@ -340,6 +350,8 @@ enum Defaults {
         sample.swift.xcode = ""
         sample.quality.lock = ""
         sample.quality.include = []
+        sample.quality.local = [""]
+        sample.quality.discipline = Discipline()
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
         sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [], title: "")]

@@ -11,7 +11,12 @@ struct StepsTests {
         existing: Set<String> = [],
         local: Bool = false
     ) throws -> [String] {
-        let planner = StepPlanner(configuration: try configuration(json), project: project, lock: .builtIn)
+        let planner = StepPlanner(
+            configuration: try configuration(json),
+            project: project,
+            lock: .builtIn,
+            mutationOutput: "/tmp/mutation-run"
+        )
         return commandLines(
             try planner.steps(for: id, swiftFiles: files, fileExists: { existing.contains($0) }, local: local)
         )
@@ -152,7 +157,7 @@ struct StepsTests {
             formatters: [.swiftLint, .nickSwiftFormat],
             corpus: ["Sources"]
         )
-        let json = #"{"quality": {"analyzers": ["modeler"]}}"#
+        let json = #"{"quality": {"analyzers": ["modeler"], "local": ["litmus"]}}"#
         let lines = try steps(CheckID.quality, json, project: project)
         #expect(
             lines == [
@@ -162,10 +167,26 @@ struct StepsTests {
         )
         let local = try steps(CheckID.quality, json, project: project, local: true)
         #expect(
-            local.suffix(2) == [
-                "litmus run . --trust-project --output .build/swift-ci/litmus",
-                "litmus analyze . --results .build/swift-ci/litmus/run.pb --strict"
+            local.suffix(3) == [
+                "install litmus",
+                "litmus run . --trust-project --output /tmp/mutation-run",
+                "litmus analyze . --results /tmp/mutation-run/run.pb --strict"
             ]
+        )
+        // With a baseline, only a new survivor fails; without the opt-in, no mutation testing runs locally.
+        let gated = try steps(
+            CheckID.quality,
+            json,
+            project: project,
+            existing: [".ci/baselines/litmus.json"],
+            local: true
+        )
+        #expect(
+            gated.last
+                == "litmus analyze . --results /tmp/mutation-run/run.pb --baseline .ci/baselines/litmus.json --gate new-survivors"
+        )
+        #expect(
+            !(try steps(CheckID.quality, project: project, local: true)).contains { $0.hasPrefix("install litmus") }
         )
         #expect(throws: SwiftCIError.self) { try steps(CheckID.quality, #"{"quality": {"analyzers": ["swiftlint"]}}"#) }
         #expect(throws: SwiftCIError.self) { try steps(CheckID.quality, #"{"quality": {"analyzers": ["unknown"]}}"#) }
@@ -304,5 +325,66 @@ struct ActionFailureLogTests {
         process.waitUntilExit()
         #expect(process.terminationStatus == 17)
         #expect(try String(contentsOf: output, encoding: .utf8).contains("expected-build-diagnostic"))
+    }
+}
+
+struct CommandLineHelpTests {
+    @Test func `a subcommand help prints the usage and runs nothing`() throws {
+        let sandbox = try Sandbox(["Package.swift": "// swift-tools-version: 6.2\n"])
+        let cli = try #require(Self.cli)
+        for command in ["local", "run", "plan", "baseline"] {
+            let process = Process()
+            process.executableURL = cli
+            process.arguments = [command, "--help", "--root", sandbox.root.path]
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardError = output
+            try process.run()
+            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+            #expect(process.terminationStatus == 0, "\(command) --help")
+            #expect(text.contains("swift-ci local [<check>...]"), "\(command) --help printed the usage")
+            #expect(!text.contains("==>"), "\(command) --help ran a step")
+        }
+        #expect(!FileManager.default.fileExists(atPath: sandbox.root.appendingPathComponent(".build").path))
+    }
+
+    /// The CLI in SwiftPM's products directory, beside this target's resource bundle (`swift build --build-tests`
+    /// and `swift test` build both).
+    static var cli: URL? {
+        // The bundle may resolve inside the test bundle (macOS) or beside it (Linux): walk up to the products directory.
+        var directory = Bundle.module.bundleURL
+        for _ in 0 ..< 6 {
+            directory.deleteLastPathComponent()
+            let candidate = directory.appendingPathComponent("swift-ci")
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+                !isDirectory.boolValue,
+                FileManager.default.isExecutableFile(atPath: candidate.path)
+            {
+                return candidate
+            }
+        }
+        return nil
+    }
+}
+
+struct LocalToolLockTests {
+    @Test func `litmus is pinned for local mutation testing on macOS only`() throws {
+        let litmus = try ToolLock.builtIn.tool(named: "litmus")
+        #expect(litmus.version == "0.3.1")
+        #expect(litmus.archives.keys.sorted() == [ToolLock.Platform.macOSArm64.rawValue])
+        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.3.1-macos-arm64/litmus")
+        #expect(litmus.arguments == nil)
+    }
+}
+
+struct MutationOutputTests {
+    @Test func `each local mutation run writes to a new directory outside the project`() {
+        let first = StepPlanner(configuration: Configuration(), project: package, lock: .builtIn, root: "/work/p")
+        let second = StepPlanner(configuration: Configuration(), project: package, lock: .builtIn, root: "/work/p")
+        #expect(first.mutationOutput != second.mutationOutput)
+        #expect(!first.mutationOutput.hasPrefix("/work/p"))
+        #expect(!FileManager.default.fileExists(atPath: first.mutationOutput))
     }
 }

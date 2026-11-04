@@ -36,6 +36,8 @@ public enum Step: Sendable, Equatable {
     case archive(executable: String, os: OS)
     /// Writes a file the next steps read, relative to the root.
     case file(path: String, contents: String)
+    /// The shipped-library and test-tree rules (``Discipline``).
+    case discipline(Discipline)
 
     public var title: String {
         switch self {
@@ -45,6 +47,7 @@ public enum Step: Sendable, Equatable {
             case .tool(_, let title, _): title
             case .archive(let executable, _): "Archive \(executable)"
             case .file(let path, _): "Write \(path)"
+            case .discipline: "Discipline · Shipped Code & Tests"
         }
     }
 }
@@ -57,7 +60,6 @@ public enum Paths {
     public static let results = root + "/results"
     public static let documentation = root + "/docs"
     public static let distribution = root + "/dist"
-    public static let litmus = root + "/litmus"
     /// LeakSanitizer suppressions of the Linux AddressSanitizer runs.
     public static let leakSuppressions = root + "/lsan-suppressions.txt"
 }
@@ -89,12 +91,30 @@ public struct StepPlanner: Sendable {
     /// The project's absolute path, for what a child process reads from another directory (the leak suppressions);
     /// empty keeps paths relative.
     public var root: String
+    /// Where a local mutation run writes: a new directory outside the project, as litmus requires (it refuses an
+    /// output inside the source root or one that exists).
+    public var mutationOutput: String
 
-    public init(configuration: Configuration, project: Project, lock: ToolLock, root: String = "") {
+    public init(
+        configuration: Configuration,
+        project: Project,
+        lock: ToolLock,
+        root: String = "",
+        mutationOutput: String? = nil
+    ) {
         self.configuration = configuration
         self.project = project
         self.lock = lock
         self.root = root
+        self.mutationOutput =
+            mutationOutput
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("swift-ci-litmus-\(UUID().uuidString)")
+            .path
+    }
+
+    /// A pinned tool: its install, then one run of it.
+    func locked(_ name: String, title: String, _ arguments: [String]) throws -> [Step] {
+        [.install(try lock.tool(named: name)), .tool(name: name, title: title, arguments: arguments)]
     }
 
     /// `path` from the root, absolute when the root is known.
@@ -338,12 +358,31 @@ public struct StepPlanner: Sendable {
     /// Each analyzer writes its current findings to `.ci/baselines/<tool>.json`: they are accepted, and only a finding
     /// not in the baseline fails quality afterwards. For adopting a gate on a codebase with a backlog.
     public func baselines() throws -> [Step] {
-        try configuration.quality.analyzers.flatMap { name -> [Step] in
+        var steps = try configuration.quality.analyzers.flatMap { name -> [Step] in
             let tool = try lock.tool(named: name)
             guard let base = tool.arguments else { throw SwiftCIError("\(name) is a formatter, not an analyzer") }
             let arguments = base + ["--write-baseline", CIFolder.baseline(of: name)] + project.corpus
             return [.install(tool), .tool(name: name, title: "\(name) baseline", arguments: arguments)]
         }
+        // Mutation testing, when it is a local gate: one run, then its survivors become the accepted baseline.
+        if configuration.quality.local.contains("litmus") {
+            steps += try locked(
+                "litmus",
+                title: "litmus (mutation testing)",
+                ["run", ".", "--trust-project", "--output", mutationOutput]
+            )
+            steps.append(
+                .tool(
+                    name: "litmus",
+                    title: "litmus baseline",
+                    arguments: [
+                        "analyze", ".", "--results", mutationOutput + "/run.pb", "--write-baseline",
+                        CIFolder.baseline(of: "litmus")
+                    ]
+                )
+            )
+        }
+        return steps
     }
 
     func quality(swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
@@ -362,19 +401,16 @@ public struct StepPlanner: Sendable {
                         + files
                     steps.append(.run(ShellCommand("swift-format (\(files.count) files)", arguments)))
                 case .swiftLint:
-                    steps.append(.install(try lock.tool(named: "swiftlint")))
-                    steps.append(
-                        .tool(
-                            name: "swiftlint",
-                            title: "SwiftLint",
-                            arguments: ["lint", "--strict", "--quiet", "--config", ".swiftlint.yml"]
-                        )
+                    steps += try locked(
+                        "swiftlint",
+                        title: "SwiftLint",
+                        ["lint", "--strict", "--quiet", "--config", ".swiftlint.yml"]
                     )
                 case .nickSwiftFormat:
-                    steps.append(.install(try lock.tool(named: "swiftformat")))
-                    steps.append(.tool(name: "swiftformat", title: "SwiftFormat", arguments: ["--lint", "."]))
+                    steps += try locked("swiftformat", title: "SwiftFormat", ["--lint", "."])
             }
         }
+        if let discipline = configuration.quality.discipline { steps.append(.discipline(discipline)) }
         for name in configuration.quality.analyzers {
             let tool = try lock.tool(named: name)
             guard let base = tool.arguments else { throw SwiftCIError("\(name) is a formatter, not an analyzer") }
@@ -391,20 +427,21 @@ public struct StepPlanner: Sendable {
                 guard name == "litmus" else {
                     throw SwiftCIError("quality.local: swift-ci knows how to run litmus only, not \(name)")
                 }
-                steps.append(
-                    .run(
-                        ShellCommand(
-                            "litmus (mutation testing)",
-                            ["litmus", "run", ".", "--trust-project", "--output", Paths.litmus]
-                        )
-                    )
+                // Installed from its pinned release and checked like the analyzers, never taken from PATH.
+                steps += try locked(
+                    "litmus",
+                    title: "litmus (mutation testing)",
+                    ["run", ".", "--trust-project", "--output", mutationOutput]
                 )
+                // A baseline accepts today's survivors (as the analyzers' do): then only a new one fails.
+                let baseline = CIFolder.baseline(of: "litmus")
+                let gate =
+                    fileExists(baseline) ? ["--baseline", baseline, "--gate", "new-survivors"] : ["--strict"]
                 steps.append(
-                    .run(
-                        ShellCommand(
-                            "litmus verdict",
-                            ["litmus", "analyze", ".", "--results", Paths.litmus + "/run.pb", "--strict"]
-                        )
+                    .tool(
+                        name: "litmus",
+                        title: "litmus verdict",
+                        arguments: ["analyze", ".", "--results", mutationOutput + "/run.pb"] + gate
                     )
                 )
             }

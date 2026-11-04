@@ -59,7 +59,7 @@ struct ScaffoldTests {
     @Test func `a package gets an empty configuration and a workflow pinned to the commit`() throws {
         let commit = String(repeating: "c", count: 40)
         let files = try Scaffold.files(project: package, schemes: [], ref: commit)
-        #expect(files.map(\.path) == [".ci/action.json", ".github/workflows/ci.yml"])
+        #expect(files.map(\.path) == [".ci/action.json", ".github/workflows/ci.yml", ".ci/swift-ci"])
         #expect(files[0].contents == "{}\n")
         #expect(try Configuration.decode(Data(files[0].contents.utf8)) == Configuration())
         #expect(files[1].contents.contains("uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@\(commit)\n"))
@@ -89,7 +89,8 @@ struct ScaffoldTests {
             try Scaffold.files(project: package, schemes: [], ref: "main"),
             root: sandbox.root
         )
-        #expect(written == [".ci/action.json"] && kept == [".github/workflows/ci.yml"])
+        #expect(written == [".ci/action.json", ".ci/swift-ci"] && kept == [".github/workflows/ci.yml"])
+        #expect(FileManager.default.isExecutableFile(atPath: sandbox.root.appendingPathComponent(".ci/swift-ci").path))
         #expect(
             try String(contentsOf: sandbox.root.appendingPathComponent(".github/workflows/ci.yml"), encoding: .utf8)
                 == "mine"
@@ -136,6 +137,18 @@ struct AdoptionTests {
                 "dolly analyze --strict --no-cache --relative-to . --write-baseline .ci/baselines/dolly.json Sources Tests",
                 "install modeler",
                 "modeler check --strict --no-cache --relative-to . --write-baseline .ci/baselines/modeler.json Sources Tests"
+            ]
+        )
+        let mutation = StepPlanner(
+            configuration: try configuration(#"{"quality": {"analyzers": [], "local": ["litmus"]}}"#),
+            project: package,
+            lock: .builtIn,
+            mutationOutput: "/tmp/m"
+        )
+        #expect(
+            commandLines(try mutation.baselines()) == [
+                "install litmus", "litmus run . --trust-project --output /tmp/m",
+                "litmus analyze . --results /tmp/m/run.pb --write-baseline .ci/baselines/litmus.json"
             ]
         )
     }
@@ -241,6 +254,68 @@ struct BeforeTests {
         #expect(throws: SwiftCIError.self) {
             _ = try Planner(configuration: configuration("{\"commands\":\(commands)}"), project: package)
                 .plan(event: Event(trigger: .push, ref: ""), changedFiles: nil)
+        }
+    }
+}
+
+struct BootstrapTests {
+    @Test func `the bootstrap is valid bash and runs the commit the workflow pins`() throws {
+        let sandbox = try Sandbox(["bootstrap": Scaffold.bootstrap])
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-n", sandbox.root.appendingPathComponent("bootstrap").path]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        #expect(Scaffold.bootstrap.contains("g-cqd/swift-ci/\\.github/workflows/swift-ci\\.yml@[0-9a-f]{40}"))
+        #expect(Scaffold.bootstrap.hasSuffix("exec \"$cli\" \"$@\" --root \"$root\"\n"))
+    }
+
+    /// `.ci/bootstrap.sh` is the bootstrap as a file, so shellcheck lints the exact text repositories receive.
+    @Test func `the embedded bootstrap is byte for byte the linted script`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let file = try String(contentsOf: root.appendingPathComponent(".ci/bootstrap.sh"), encoding: .utf8)
+        #expect(file == Scaffold.bootstrap)
+    }
+
+    @Test func `an edited, outdated or non-executable bootstrap is refused; a written one is accepted`() throws {
+        let sandbox = try Sandbox()
+        try Scaffold.checkBootstrap(root: sandbox.root)  // none: nothing to check
+        try Scaffold.writeBootstrap(root: sandbox.root)
+        try Scaffold.checkBootstrap(root: sandbox.root)
+        let url = sandbox.root.appendingPathComponent(Scaffold.bootstrapPath)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        #expect(throws: SwiftCIError.self) { try Scaffold.checkBootstrap(root: sandbox.root) }
+        try (Scaffold.bootstrap + "# edited\n").write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        #expect(throws: SwiftCIError.self) { try Scaffold.checkBootstrap(root: sandbox.root) }
+    }
+}
+
+struct LocalChecksTests {
+    @Test func `local checks default to quality and this machine's debug tests, and are configurable`() throws {
+        #if os(macOS)
+            let host = CheckID.macOSDebug
+        #else
+            let host = CheckID.linuxDebug
+        #endif
+        #expect(CheckID.local(Configuration().localChecks) == [CheckID.quality, host])
+        let json =
+            #"{"localChecks": ["quality", "debug", "self-analysis"], "commands": [{"id": "self-analysis", "run": "x", "after": "linux-debug"}]}"#
+        let config = try configuration(json)
+        // A command attached to a listed check runs with it, not twice.
+        let expected = host == CheckID.linuxDebug ? [CheckID.quality, host] : [CheckID.quality, host, "self-analysis"]
+        #expect(CheckID.local(config.localChecks, commands: config.commands) == expected)
+        #expect(CheckID.local(["linux-debug", "self-analysis"], commands: config.commands) == ["linux-debug"])
+        _ = try Planner(configuration: config, project: package)
+            .plan(event: Event(trigger: .dispatch, ref: ""), changedFiles: nil)
+    }
+
+    @Test func `an unknown local check is refused`() {
+        #expect(throws: SwiftCIError.self) {
+            _ = try Planner(configuration: configuration(#"{"localChecks": ["quality", "nothing"]}"#), project: package)
+                .plan(event: Event(trigger: .dispatch, ref: ""), changedFiles: nil)
         }
     }
 }

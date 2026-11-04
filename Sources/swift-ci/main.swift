@@ -5,6 +5,7 @@ let usage = """
     swift-ci: plan, run and check a Swift package's or Xcode project's CI, the same way in CI and on a developer's machine.
 
       swift-ci init [--ref REF]                write .ci/action.json and the workflow calling swift-ci at REF
+      swift-ci bootstrap                       write .ci/swift-ci, which runs the swift-ci commit CI pins
       swift-ci baseline                        accept the analyzers' current findings (.ci/baselines/<tool>.json)
       swift-ci detect                          what the project is, as swift-ci reads it
       swift-ci validate                        check .ci/action.json and the tool lock
@@ -86,6 +87,8 @@ func main() throws {
     guard let command = all.first, command != "--help", command != "help" else { return print(usage) }
     all.removeFirst()
     let arguments = try Arguments(all)
+    // Help never runs anything: a subcommand's --help prints the usage and stops.
+    if arguments.flags.contains("--help") { return print(usage) }
     let current = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
     let root = URL(fileURLWithPath: arguments.options["--root"] ?? ".", isDirectory: true, relativeTo: current)
         .standardizedFileURL
@@ -138,9 +141,15 @@ func main() throws {
             _ = try Planner(configuration: configuration, project: project)
                 .plan(event: Event(trigger: .dispatch, ref: ""), changedFiles: nil)
             try lock.validate()
+            try Scaffold.checkBootstrap(root: root)
             print("ok: \(configFile) and the tool lock are valid (\(project.kind.rawValue))")
+        case "bootstrap":
+            try Scaffold.writeBootstrap(root: root)
+            print("wrote \(Scaffold.bootstrapPath)")
         case "plan":
             let (configuration, project, _) = try context()
+            // CI refuses a local bootstrap that would run a different swift-ci than this one.
+            try Scaffold.checkBootstrap(root: root)
             // In GitHub Actions the event, the ref and the base come from the run; elsewhere they are given.
             let github = GitHubContext.current
             guard let name = arguments.options["--event"] ?? github.eventName,
@@ -188,12 +197,15 @@ func main() throws {
         case "local":
             let (configuration, project, lock) = try context()
             let planner = StepPlanner(configuration: configuration, project: project, lock: lock, root: root.path)
-            #if os(macOS)
-                let host = CheckID.macOSDebug
-            #else
-                let host = CheckID.linuxDebug
-            #endif
-            let ids = arguments.positional.isEmpty ? [CheckID.quality, host] : arguments.positional
+            _ = try Planner(configuration: configuration, project: project)
+                .plan(
+                    event: Event(trigger: .dispatch, ref: ""),
+                    changedFiles: nil
+                )
+            let ids = CheckID.local(
+                arguments.positional.isEmpty ? configuration.localChecks : arguments.positional,
+                commands: configuration.commands
+            )
             var executor = Executor(root: root, dryRun: dryRun)
             for id in ids {
                 let files = id == CheckID.quality ? try Git.swiftFiles(root: root) : []

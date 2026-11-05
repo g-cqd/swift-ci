@@ -10,7 +10,8 @@ Twenty-three repositories call the reusable workflow through a `Checks` job pinn
 validated `.ci/action.json` and the same `.ci/swift-ci` bootstrap: the eleven below, and the twelve migrated from
 aemi's older reusable workflow, its `setup-swift` action or copies of `Scripts/analyzers.sh`. The family, ask,
 TerminalKit, AemiMarkdown and Atelier pin `27f96f0` (arcleak 0.17.5 in the lock); AemiProtobuf and CSVCoder pin
-`e33bcf9` (TLA+ models on the `tla` command); HTTP pins `e950325`; AemiSwift, InternedStrings, Abysm, AemiSDR,
+`e33bcf9` (TLA+ models on the `tla` command; CSVCoder's platform builds are on the simulator SDKs again, with
+aemi 3062470); HTTP pins `e950325`; AemiSwift, InternedStrings, Abysm, AemiSDR,
 swift-search and URLBuilder pin `c930444`.
 
 | Repository | Shape | Notes |
@@ -56,13 +57,14 @@ Added to swift-ci for these migrations, each tested on macOS and Linux:
 
 Open:
 
-- CSVCoder's platform builds use device SDKs; aemi builds for simulators since 15217a0, so they can move back.
 - AemiProtobuf's and CSVCoder's TLA+ models run on the `tla` command (AemiProtobuf weekly on macOS, CSVCoder after
   the macOS release tests; its control is `BackpressureOld.buggy.cfg`); their own jobs keep the Lean proofs.
   AemiProtobuf's modeler check moved into quality (swift-ci's modeler 0.4.7, on every change).
 - ask runs without the library discipline (it is an application; enabling it means clearing force unwraps in
   `Sources` and untyped `#expect(throws:)` and wall-clock assertions in `Tests`).
-- HTTP's Linux TSan job has failed since 2026-10-25, before this migration; it is unchanged.
+- HTTP: its Linux TSan job passes again (since swift-ci 5ef5e74's suppression); its benchmark job, which held
+  until its 25-minute timeout, passes since HTTP 87d0a10 (the echo benchmarks' teardown) and 65d3221/414ebca (a
+  cancelled receive returns after a kqueue or epoll transport has shut down).
 - Not exercised yet: Atelier's `kittycode/v*` release on swift-actions/setup-swift, CSVCoder's next `.version`
   release, HTTP's manual h3spec and soak jobs.
 

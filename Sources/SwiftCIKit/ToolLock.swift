@@ -160,9 +160,9 @@ public struct ToolLock: Codable, Sendable, Equatable {
             ),
             gcqd(
                 "deadwood",
-                "0.15.4",
-                mac: "5e8c28a7de9d9cfe82aad5832af3de699be4df68bbb0e4373c31d5ac1e24e03f",
-                linux: "3350a50fee3cfc4d07b11a9ce77c8bc94a609d111699bca4e427092374c59579"
+                "0.16.0",
+                mac: "c73cca00a951383b7697c0132f40635f71589c5b399b6f28a5bd070c4293103b",
+                linux: "7fb1720dca98530a28b64aa4aaecd434a7e9642fd7ad5af5d503328e9eaa1a5c"
             ),
             gcqd(
                 "dolly",

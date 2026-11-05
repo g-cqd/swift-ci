@@ -261,8 +261,21 @@ public struct Planner: Sendable {
             throw SwiftCIError("commands: id '\(command.id)' is used twice or names a built-in check")
         }
         for command in configuration.commands {
-            guard command.run.isEmpty != (command.tla == nil) else {
-                throw SwiftCIError("commands.\(command.id): needs run or tla, exactly one of them")
+            let actions = [!command.run.isEmpty, command.tla != nil, command.git != nil].filter { $0 }.count
+            guard actions == 1 else {
+                throw SwiftCIError("commands.\(command.id): needs run, tla or git, exactly one of them")
+            }
+            for (index, fixture) in (command.git ?? []).enumerated() {
+                if let problem = fixture.problem() {
+                    throw SwiftCIError("commands.\(command.id).git[\(index)]: \(problem)")
+                }
+            }
+            if let fixtures = command.git {
+                guard !fixtures.isEmpty else { throw SwiftCIError("commands.\(command.id).git: lists no repository") }
+                let targets = fixtures.map(\.into)
+                guard Set(targets).count == targets.count else {
+                    throw SwiftCIError("commands.\(command.id).git: two repositories go into one directory")
+                }
             }
             guard command.after == nil || command.before.isEmpty else {
                 throw SwiftCIError("commands.\(command.id): before and after cannot be combined")

@@ -42,6 +42,8 @@ public enum Step: Sendable, Equatable {
     case swiftFormat(files: [String])
     /// TLA+ models checked with TLC (``TLAModels``).
     case tla(title: String, models: TLAModels)
+    /// Repositories fetched at pinned commits (``GitFixture``).
+    case git(title: String, fixtures: [GitFixture])
 
     public var title: String {
         switch self {
@@ -54,6 +56,7 @@ public enum Step: Sendable, Equatable {
             case .discipline: "Discipline · Shipped Code & Tests"
             case .swiftFormat(let files): "swift-format (\(files.count) files)"
             case .tla(let title, _): title
+            case .git(let title, _): title
         }
     }
 }
@@ -166,6 +169,7 @@ public struct StepPlanner: Sendable {
     static func step(_ command: Configuration.Command) -> Step {
         let title = command.title ?? command.id
         if let models = command.tla { return .tla(title: title, models: models) }
+        if let fixtures = command.git { return .git(title: title, fixtures: fixtures) }
         return .shell(title: title, script: command.run)
     }
 

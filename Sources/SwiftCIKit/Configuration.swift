@@ -216,6 +216,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var run: String
         /// TLA+ models checked with TLC instead of a shell command (``TLAModels``).
         public var tla: TLAModels?
+        /// Repositories fetched at pinned commits instead of a shell command (``GitFixture``).
+        public var git: [GitFixture]?
         public var os: OS = .linux
         public var cadence: [Trigger] = Array(Trigger.everyChange).sorted()
         /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
@@ -237,12 +239,14 @@ public struct Configuration: Codable, Sendable, Equatable {
             after: String? = nil,
             before: [String] = [],
             title: String? = nil,
-            tla: TLAModels? = nil
+            tla: TLAModels? = nil,
+            git: [GitFixture]? = nil
         ) {
             self.id = id
             self.title = title
             self.run = run
             self.tla = tla
+            self.git = git
             self.os = os
             self.cadence = cadence
             self.archives = archives
@@ -350,6 +354,7 @@ enum Defaults {
         root["documentation?"] = ["warningsAsErrors": true]
         var command = try encode(Configuration.Command(id: "", run: ""))
         command["tla?"] = try encode(TLAModels())
+        command["git?"] = try [encode(GitFixture(git: "", commit: "", into: ""))]
         root["commands[]"] = command
         var quality = root["quality"] as? [String: Any] ?? [:]
         quality["discipline?"] = try encode(Discipline())
@@ -370,7 +375,17 @@ enum Defaults {
         sample.quality.discipline = Discipline()
         sample.release = Configuration.Release()
         sample.documentation = Configuration.Documentation(targets: [])
-        sample.commands = [Configuration.Command(id: "", run: "", after: "", before: [], title: "", tla: TLAModels())]
+        sample.commands = [
+            Configuration.Command(
+                id: "",
+                run: "",
+                after: "",
+                before: [],
+                title: "",
+                tla: TLAModels(),
+                git: [GitFixture(git: "", commit: "", into: "")]
+            )
+        ]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]
         return sample
     }

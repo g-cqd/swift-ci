@@ -154,7 +154,9 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     { "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] },
     { "id": "self-analysis", "run": "swift run tool analyze Sources", "after": "linux-debug" },  // in that job, warm
     { "id": "full", "run": ".ci/full-bundle.sh", "after": "archive-macos", "archives": true },  // published too
-    { "id": "models", "tla": { "models": "docs/formal" }, "after": "macos-debug" }   // TLA+ models, with TLC
+    { "id": "models", "tla": { "models": "docs/formal" }, "after": "macos-debug" },  // TLA+ models, with TLC
+    { "id": "suites", "git": [{ "git": "https://github.com/o/suite", "commit": "<40 hex>", "into": ".build/fixtures/suite" }],
+      "before": ["linux-debug", "macos-debug"] }                                      // a repository at a pinned commit
   ],
   "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
 }
@@ -242,6 +244,13 @@ must hold; every `<Module>.buggy.cfg` is a control that must be refuted, which s
 a state directory of its own outside the repository: TLC's default is named after the current second, beside the
 specification, so a model that ends within a second made the next one fail. The verdict comes from TLC's error line,
 not its exit status alone: an invariant false in the initial state exits 151, as a configuration error does.
+
+A command with `git` instead of `run` copies repositories at pinned commits into the project, usually `before` the
+checks whose tests read them (a conformance suite, a corpus kept out of the repository). Only that commit is fetched,
+without history, and the copy must be the commit named: git names a commit by the hash of its content, so the commit is
+the integrity check, and a 40-character hash is required. The copy has no `.git` and a `.swift-ci-commit` stamp; a run
+with the same commit does nothing, one with another commit replaces it, and an interrupted fetch leaves no partial copy.
+`into` must stay inside the root (not `.git` or `.ci`); `.build/fixtures/<name>` keeps it out of the tree.
 
 `platforms` builds each scheme with `xcodebuild build` for each platform, with the selected Xcode's toolchain (a
 swift.org toolchain has no iOS, tvOS, watchOS or visionOS standard library), unsigned, without the macro and plugin

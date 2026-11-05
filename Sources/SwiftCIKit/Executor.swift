@@ -96,6 +96,13 @@ public struct Executor {
             case .tla(_, let models):
                 if dryRun { return print("tlc \(models.models)/*.cfg (tla2tools \(TLC.version))") }
                 try check(models)
+            case .git(_, let fixtures):
+                if dryRun {
+                    return print(
+                        fixtures.map { "git \($0.git) at \($0.commit) into \($0.into)" }.joined(separator: "\n")
+                    )
+                }
+                try fetch(fixtures)
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)

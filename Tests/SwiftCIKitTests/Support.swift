@@ -52,6 +52,7 @@ func commandLines(_ steps: [Step]) -> [String] {
                 SwiftFormatLint.arguments(configuration: ".swift-format", files: files).joined(separator: " ")
             case .tla(_, let models): "tla " + models.models
             case .git(_, let fixtures): fixtures.map { "git \($0.git)@\($0.commit) \($0.into)" }.joined(separator: "; ")
+            case .benchmark(_, let comparison): "benchmark " + comparison.package
         }
     }
 }

@@ -48,6 +48,12 @@ Added to swift-ci for these migrations, each tested on macOS and Linux:
   runs (31b9830).
 - The release job finds the archives in its container: `github.workspace` is the host's path there (b0546eb; the
   first tag since `package-path`, arcleak v0.17.5, failed on it).
+- Benchmarks as a command, `{"benchmark": {"package", "filter", "metrics", "shared"}}`: an ordo-one package run at the
+  commit before (a worktree of the project's name, `shared` paths linked in) and here, on the same runner. Only
+  instructions and allocations are taken by default. The two baselines go into the job summary, and a regression past
+  the tolerances the benchmarks declare fails the command; the plugin reports an improvement as an error too, so the
+  verdict reads its message. A command's `paths` limit a push or a pull request to changes that touch them. Verified on
+  AemiHMMML: an unchanged tree is within its tolerances, and reverting a speed-up (+5 % instructions) fails it.
 - Mutation testing as a scheduled command, `{"os": "macOS", "mutation": {"paths", "budget", "workspace"}}`: the pinned
   litmus over the given globs, then its verdict (only a new survivor fails with `.ci/baselines/litmus.json`, any
   without one). `in-place` mutates a CI runner's checkout, so the tests find fixtures fetched into `.build`.

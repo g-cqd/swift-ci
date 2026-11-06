@@ -220,6 +220,11 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var git: [GitFixture]?
         /// Mutation testing with the pinned litmus instead of a shell command (``Mutation``).
         public var mutation: Mutation?
+        /// Benchmarks of this commit compared with the one before instead of a shell command (``BenchmarkComparison``).
+        public var benchmark: BenchmarkComparison?
+        /// Globs of the files whose change makes a push or a pull request run it (a benchmark when a hot path changed);
+        /// empty runs it on every one. Scheduled and dispatched runs always run it.
+        public var paths: [String] = []
         public var os: OS = .linux
         public var cadence: [Trigger] = Array(Trigger.everyChange).sorted()
         /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
@@ -243,7 +248,9 @@ public struct Configuration: Codable, Sendable, Equatable {
             title: String? = nil,
             tla: TLAModels? = nil,
             git: [GitFixture]? = nil,
-            mutation: Mutation? = nil
+            mutation: Mutation? = nil,
+            benchmark: BenchmarkComparison? = nil,
+            paths: [String] = []
         ) {
             self.id = id
             self.title = title
@@ -251,6 +258,8 @@ public struct Configuration: Codable, Sendable, Equatable {
             self.tla = tla
             self.git = git
             self.mutation = mutation
+            self.benchmark = benchmark
+            self.paths = paths
             self.os = os
             self.cadence = cadence
             self.archives = archives
@@ -360,6 +369,7 @@ enum Defaults {
         command["tla?"] = try encode(TLAModels())
         command["git?"] = try [encode(GitFixture(git: "", commit: "", into: ""))]
         command["mutation?"] = try encode(Mutation())
+        command["benchmark?"] = try encode(BenchmarkComparison())
         root["commands[]"] = command
         var quality = root["quality"] as? [String: Any] ?? [:]
         quality["discipline?"] = try encode(Discipline())
@@ -389,7 +399,9 @@ enum Defaults {
                 title: "",
                 tla: TLAModels(),
                 git: [GitFixture(git: "", commit: "", into: "")],
-                mutation: Mutation(paths: [""], budget: 0)
+                mutation: Mutation(paths: [""], budget: 0),
+                benchmark: BenchmarkComparison(filter: "", shared: [""]),
+                paths: [""]
             )
         ]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]

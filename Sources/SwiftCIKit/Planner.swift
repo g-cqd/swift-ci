@@ -178,8 +178,10 @@ public struct Planner: Sendable {
         let checks = Check.catalog.filter {
             $0.applies(project, configuration) && cadence(of: $0).contains(event.trigger)
         }
+        let changed = [.push, .pullRequest, .mergeQueue].contains(event.trigger) ? changedFiles : nil
         let commands = configuration.commands.filter {
             $0.after == nil && $0.before.isEmpty && $0.cadence.contains(event.trigger)
+                && Self.touches(changed, $0.paths)
         }
         for (id, os) in checks.map({ ($0.id, $0.os) }) + commands.map({ ($0.id, $0.os) }) {
             let planned = jobs(for: id, os: os)
@@ -187,6 +189,13 @@ public struct Planner: Sendable {
         }
         plan.publish = event.trigger == .tag && !(configuration.release?.executables.isEmpty ?? true)
         return plan
+    }
+
+    /// Whether a change touched one of `paths`: always when there are none, or the change is not known.
+    static func touches(_ changed: [String]?, _ paths: [String]) -> Bool {
+        guard !paths.isEmpty, let changed else { return true }
+        let globs = paths.map(Glob.init)
+        return changed.contains { file in globs.contains { $0.matches(file) } }
     }
 
     /// The jobs of one check: one per Swift version when the check is in `swift.matrix`, else on the primary one.
@@ -261,10 +270,31 @@ public struct Planner: Sendable {
             throw SwiftCIError("commands: id '\(command.id)' is used twice or names a built-in check")
         }
         for command in configuration.commands {
-            let actions = [!command.run.isEmpty, command.tla != nil, command.git != nil, command.mutation != nil]
-                .filter { $0 }.count
+            let actions = [
+                !command.run.isEmpty, command.tla != nil, command.git != nil, command.mutation != nil,
+                command.benchmark != nil
+            ]
+            .filter { $0 }.count
             guard actions == 1 else {
-                throw SwiftCIError("commands.\(command.id): needs run, tla, git or mutation, exactly one of them")
+                throw SwiftCIError(
+                    "commands.\(command.id): needs run, tla, git, mutation or benchmark, exactly one of them"
+                )
+            }
+            if let benchmark = command.benchmark {
+                if let problem = benchmark.problem() {
+                    throw SwiftCIError("commands.\(command.id).benchmark: \(problem)")
+                }
+                // Two release builds and their runs: a job of its own.
+                guard command.after == nil, command.before.isEmpty else {
+                    throw SwiftCIError(
+                        "commands.\(command.id).benchmark: a job of its own, neither \"after\" nor \"before\""
+                    )
+                }
+            }
+            if !command.paths.isEmpty, command.after != nil || !command.before.isEmpty {
+                throw SwiftCIError(
+                    "commands.\(command.id).paths: only a command with a job of its own runs by the files changed"
+                )
             }
             if let mutation = command.mutation {
                 if let problem = mutation.problem() {

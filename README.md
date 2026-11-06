@@ -157,6 +157,8 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     { "id": "models", "tla": { "models": "docs/formal" }, "after": "macos-debug" },  // TLA+ models, with TLC
     { "id": "mutation", "os": "macOS", "cadence": ["nightly", "dispatch"],             // litmus, pinned; new survivors fail
       "mutation": { "paths": ["Sources/Core/**"], "budget": 3600, "workspace": "in-place" } },
+    { "id": "benchmarks", "os": "macOS", "cadence": ["push", "nightly"], "paths": ["Sources/**"],  // only when they change
+      "benchmark": { "package": "Benchmarks", "shared": [".build/fixtures"] } },      // vs the commit before, same runner
     { "id": "suites", "git": [{ "git": "https://github.com/o/suite", "commit": "<40 hex>", "into": ".build/fixtures/suite" }],
       "before": ["linux-debug", "macos-debug"] }                                      // a repository at a pinned commit
   ],

@@ -103,6 +103,11 @@ public struct Executor {
                     )
                 }
                 try fetch(fixtures)
+            case .benchmark(_, let comparison):
+                if dryRun {
+                    return print("benchmarks of \(comparison.package) here and at the commit before, compared")
+                }
+                try compare(comparison)
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)

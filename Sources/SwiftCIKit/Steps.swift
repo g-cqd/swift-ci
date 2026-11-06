@@ -44,6 +44,8 @@ public enum Step: Sendable, Equatable {
     case tla(title: String, models: TLAModels)
     /// Repositories fetched at pinned commits (``GitFixture``).
     case git(title: String, fixtures: [GitFixture])
+    /// Benchmarks compared with the commit before (``BenchmarkComparison``).
+    case benchmark(title: String, comparison: BenchmarkComparison)
 
     public var title: String {
         switch self {
@@ -57,6 +59,7 @@ public enum Step: Sendable, Equatable {
             case .swiftFormat(let files): "swift-format (\(files.count) files)"
             case .tla(let title, _): title
             case .git(let title, _): title
+            case .benchmark(let title, _): title
         }
     }
 }
@@ -170,6 +173,7 @@ public struct StepPlanner: Sendable {
         let title = command.title ?? command.id
         if let models = command.tla { return .tla(title: title, models: models) }
         if let fixtures = command.git { return .git(title: title, fixtures: fixtures) }
+        if let comparison = command.benchmark { return .benchmark(title: title, comparison: comparison) }
         return .shell(title: title, script: command.run)
     }
 

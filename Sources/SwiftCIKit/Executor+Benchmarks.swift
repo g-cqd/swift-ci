@@ -15,6 +15,14 @@ extension Executor {
             try? FileManager.default.removeItem(at: parent)
         }
         try Shell.run(["git", "worktree", "add", "--detach", "--quiet", tree.path, base], directory: root)
+        // One toolchain for both: the commit before builds with the Swift this run selected (`swiftly use` rewrote the project's
+        // `.swift-version`; the commit before still names the one it was written with, which the runner may not have).
+        let version = root.appendingPathComponent(".swift-version")
+        if FileManager.default.fileExists(atPath: version.path) {
+            let copy = tree.appendingPathComponent(".swift-version")
+            try? FileManager.default.removeItem(at: copy)
+            try FileManager.default.copyItem(at: version, to: copy)
+        }
         for path in comparison.shared
         where FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path) {
             let link = tree.appendingPathComponent(path)

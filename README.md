@@ -155,6 +155,8 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     { "id": "self-analysis", "run": "swift run tool analyze Sources", "after": "linux-debug" },  // in that job, warm
     { "id": "full", "run": ".ci/full-bundle.sh", "after": "archive-macos", "archives": true },  // published too
     { "id": "models", "tla": { "models": "docs/formal" }, "after": "macos-debug" },  // TLA+ models, with TLC
+    { "id": "mutation", "os": "macOS", "cadence": ["nightly", "dispatch"],             // litmus, pinned; new survivors fail
+      "mutation": { "paths": ["Sources/Core/**"], "budget": 3600, "workspace": "in-place" } },
     { "id": "suites", "git": [{ "git": "https://github.com/o/suite", "commit": "<40 hex>", "into": ".build/fixtures/suite" }],
       "before": ["linux-debug", "macos-debug"] }                                      // a repository at a pinned commit
   ],

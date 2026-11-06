@@ -261,9 +261,22 @@ public struct Planner: Sendable {
             throw SwiftCIError("commands: id '\(command.id)' is used twice or names a built-in check")
         }
         for command in configuration.commands {
-            let actions = [!command.run.isEmpty, command.tla != nil, command.git != nil].filter { $0 }.count
+            let actions = [!command.run.isEmpty, command.tla != nil, command.git != nil, command.mutation != nil]
+                .filter { $0 }.count
             guard actions == 1 else {
-                throw SwiftCIError("commands.\(command.id): needs run, tla or git, exactly one of them")
+                throw SwiftCIError("commands.\(command.id): needs run, tla, git or mutation, exactly one of them")
+            }
+            if let mutation = command.mutation {
+                if let problem = mutation.problem() {
+                    throw SwiftCIError("commands.\(command.id).mutation: \(problem)")
+                }
+                // litmus ships for macOS only: a mutation command is a macOS job of its own.
+                guard command.os == .macOS, command.after == nil, command.before.isEmpty else {
+                    throw SwiftCIError(
+                        "commands.\(command.id).mutation: litmus runs on macOS only, in a job of its own: "
+                            + "give the command \"os\": \"macOS\", and neither \"after\" nor \"before\""
+                    )
+                }
             }
             for (index, fixture) in (command.git ?? []).enumerated() {
                 if let problem = fixture.problem() {

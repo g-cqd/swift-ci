@@ -173,9 +173,20 @@ public struct StepPlanner: Sendable {
         return .shell(title: title, script: command.run)
     }
 
+    /// A command's own job: litmus, installed from the lock and then given its verdict, for a mutation command (they
+    /// never attach to another check); its single step for the rest.
+    func steps(of command: Configuration.Command, fileExists: (String) -> Bool) throws -> [Step] {
+        guard let mutation = command.mutation else { return [Self.step(command)] }
+        let title = command.title ?? command.id
+        let baseline = CIFolder.baseline(of: "litmus")
+        let verdict = Mutation.verdictArguments(output: mutationOutput, baseline: fileExists(baseline) ? baseline : nil)
+        return try locked("litmus", title: title, mutation.runArguments(output: mutationOutput))
+            + [.tool(name: "litmus", title: "\(title): verdict", arguments: verdict)]
+    }
+
     func own(_ id: String, swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
         if let command = configuration.commands.first(where: { $0.id == id }) {
-            return [Self.step(command)]
+            return try steps(of: command, fileExists: fileExists)
         }
         switch id {
             case CheckID.quality: return try quality(swiftFiles: swiftFiles, fileExists: fileExists, local: local)

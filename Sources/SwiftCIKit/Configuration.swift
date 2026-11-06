@@ -135,8 +135,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var paths: [String] = []
         /// The g-cqd analyzers run from their pinned releases, in this order.
         public var analyzers: [String] = ["deadwood", "dolly", "arcleak"]
-        /// Tools run only by `swift-ci local quality`, never in CI (for now: `litmus`, mutation testing, which takes
-        /// minutes). Opt-in: none by default, so the default local gate stays fast. With `.ci/baselines/litmus.json`
+        /// Tools run only by `swift-ci local quality`, never in CI's quality check (for now: `litmus`, mutation testing,
+        /// which takes minutes; a scheduled `mutation` command, ``Mutation``, runs it in CI). Opt-in: none by default, so the default local gate stays fast. With `.ci/baselines/litmus.json`
         /// only a new surviving mutant fails; without one, every survivor does.
         public var local: [String] = []
         /// Formatters and linters: `auto` runs the ones whose configuration file is at the root
@@ -218,6 +218,8 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var tla: TLAModels?
         /// Repositories fetched at pinned commits instead of a shell command (``GitFixture``).
         public var git: [GitFixture]?
+        /// Mutation testing with the pinned litmus instead of a shell command (``Mutation``).
+        public var mutation: Mutation?
         public var os: OS = .linux
         public var cadence: [Trigger] = Array(Trigger.everyChange).sorted()
         /// What it writes to `.build/swift-ci/dist` is uploaded, and published with a tag's release (an extra
@@ -240,13 +242,15 @@ public struct Configuration: Codable, Sendable, Equatable {
             before: [String] = [],
             title: String? = nil,
             tla: TLAModels? = nil,
-            git: [GitFixture]? = nil
+            git: [GitFixture]? = nil,
+            mutation: Mutation? = nil
         ) {
             self.id = id
             self.title = title
             self.run = run
             self.tla = tla
             self.git = git
+            self.mutation = mutation
             self.os = os
             self.cadence = cadence
             self.archives = archives
@@ -355,6 +359,7 @@ enum Defaults {
         var command = try encode(Configuration.Command(id: "", run: ""))
         command["tla?"] = try encode(TLAModels())
         command["git?"] = try [encode(GitFixture(git: "", commit: "", into: ""))]
+        command["mutation?"] = try encode(Mutation())
         root["commands[]"] = command
         var quality = root["quality"] as? [String: Any] ?? [:]
         quality["discipline?"] = try encode(Discipline())
@@ -383,7 +388,8 @@ enum Defaults {
                 before: [],
                 title: "",
                 tla: TLAModels(),
-                git: [GitFixture(git: "", commit: "", into: "")]
+                git: [GitFixture(git: "", commit: "", into: "")],
+                mutation: Mutation(paths: [""], budget: 0)
             )
         ]
         sample.platforms = [Configuration.Platform(name: "", destination: "")]

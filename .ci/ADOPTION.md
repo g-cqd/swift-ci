@@ -48,6 +48,10 @@ Added to swift-ci for these migrations, each tested on macOS and Linux:
   runs (31b9830).
 - The release job finds the archives in its container: `github.workspace` is the host's path there (b0546eb; the
   first tag since `package-path`, arcleak v0.17.5, failed on it).
+- Mutation testing as a scheduled command, `{"os": "macOS", "mutation": {"paths", "budget", "workspace"}}`: the pinned
+  litmus over the given globs, then its verdict (only a new survivor fails with `.ci/baselines/litmus.json`, any
+  without one). `in-place` mutates a CI runner's checkout, so the tests find fixtures fetched into `.build`.
+  AemiHMMML runs it nightly over its format modules.
 - Repositories at pinned commits as a command, `{"git": [{"git", "commit", "into"}]}`: one commit without history,
   checked by its hash, stamped, replaced only when the commit changes. AemiHMMML fetches toml-test and the YAML
   test suite with it.

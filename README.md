@@ -198,7 +198,7 @@ swift-ci family repin --heads --root ~/family         # the family built at ever
 swift-ci family clean --root ~/family                 # remove what a run without --push left
 ```
 
-Each repository is changed in a worktree off its `origin/main`, under `.family-repin/` beside the clones: its manifests' pins
+Each repository is changed in a worktree off its `origin/main`, `.repin-<name>` beside the clones (so a `.package(path: "../X")` still reaches X): its manifests' pins
 rewritten (and a workflow's swift-ci commit when swift-ci moves), its tracked `Package.resolved` files resolved again against the
 local clones (through a mirrors file the run removes, so a commit not pushed yet is found), then `swift build` and its
 `.ci/swift-ci run quality`; a commit is made only when they pass. Without `--push` the commits stay on a `family-repin` branch of

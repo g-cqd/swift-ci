@@ -56,7 +56,7 @@ extension FamilyRepin {
 
     /// A checkout of swift-ci at `revision`, for a gate's `.ci/swift-ci` to build when swift-ci itself moved in this run.
     func sourceTree(of swiftCI: Family.Member, at revision: String) throws -> URL {
-        let tree = work.appendingPathComponent("swift-ci-source")
+        let tree = Self.worktree("swift-ci-source", in: family)
         try freshWorktree(tree, of: swiftCI, ["--detach", tree.path, revision])
         return tree
     }
@@ -108,13 +108,12 @@ extension FamilyRepin {
         }
     }
 
-    /// Removes what runs without `push` left: each member's worktree under the family's directory and its `family-repin` branch;
+    /// Removes what runs without `push` left: each member's worktree beside the clones and its `family-repin` branch;
     /// returns the members it cleaned.
     public static func clean(_ family: Family) -> [String] {
         var cleaned: [String] = []
-        let work = family.root.appendingPathComponent(".family-repin")
         for member in family.members {
-            let tree = work.appendingPathComponent(member.name)
+            let tree = worktree(member.name, in: family)
             let hadTree = FileManager.default.fileExists(atPath: tree.path)
             if hadTree { try? Shell.run(["git", "worktree", "remove", "--force", tree.path], directory: member.path) }
             let hadBranch =
@@ -123,11 +122,12 @@ extension FamilyRepin {
             if hadBranch { try? Shell.run(["git", "branch", "-D", "-q", branch], directory: member.path) }
             if hadTree || hadBranch { cleaned.append(member.name) }
         }
-        let source = work.appendingPathComponent("swift-ci-source")
+        let source = worktree("swift-ci-source", in: family)
         if let swiftCI = family.member("swift-ci"), FileManager.default.fileExists(atPath: source.path) {
             try? Shell.run(["git", "worktree", "remove", "--force", source.path], directory: swiftCI.path)
         }
-        try? FileManager.default.removeItem(at: work)
+        // What an earlier version left under `.family-repin`.
+        try? FileManager.default.removeItem(at: family.root.appendingPathComponent(".family-repin"))
         return cleaned
     }
 

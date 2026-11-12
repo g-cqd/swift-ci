@@ -24,15 +24,17 @@ public struct FamilyRepin {
 
     public init(family: Family) { self.family = family }
 
-    /// The worktrees a run makes, under the family's directory.
-    var work: URL { family.root.appendingPathComponent(".family-repin") }
+    /// Where `name`'s worktree goes: beside the clones, as `.repin-name`, so a manifest's `.package(path: "../X")` still reaches
+    /// the sibling clone.
+    static func worktree(_ name: String, in family: Family) -> URL {
+        family.root.appendingPathComponent(".repin-" + name)
+    }
 
     /// Repins every member whose pins `bumps` (package to revision) and the commits of this run make stale, in order; returns what
     /// it changed.
     public mutating func run(bumps: [String: String]) throws -> [Change] {
         var revisions = Dictionary(uniqueKeysWithValues: bumps.map { ($0.key.lowercased(), $0.value) })
         if push { try requirePushed(revisions) }
-        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         var changes: [Change] = []
         // Every member in level order whose pins differ from this run's revisions: those `bumps` force, and a named one too when
         // it pins something stale (bringing the whole family up to date names every member at its origin).
@@ -75,7 +77,7 @@ public struct FamilyRepin {
         let summary = moved.sorted { $0.key < $1.key }
             .map { "\(family.member($0.key)?.name ?? $0.key) \($0.value.prefix(7))" }
         log("\(member.name): \(summary.joined(separator: ", "))")
-        let tree = work.appendingPathComponent(member.name)
+        let tree = Self.worktree(member.name, in: family)
         try Shell.run(["git", "fetch", "-q", "origin"], directory: member.path)
         try freshWorktree(tree, of: member, ["-B", Self.branch, tree.path, "origin/main"])
         try rewrite(tree, member: member, moved: moved)

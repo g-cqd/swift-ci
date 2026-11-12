@@ -160,4 +160,27 @@ struct FamilyRepinTests {
         #expect(changes.map(\.member) == ["A", "B"], "A and B pinned the old X, though all were named")
         #expect(try fixture.pins(of: "B", at: FamilyRepin.branch) == ["a": changes[0].revision, "x": newX])
     }
+
+    /// A manifest's `.package(path: "../X")` is relative to its checkout, so each worktree sits beside the clones, where that path
+    /// still reaches the sibling clone.
+    @Test func eachWorktreeSitsBesideTheClonesSoARelativePathDependencyStillResolves() throws {
+        let (fixture, _, _) = try family()
+        _ = try fixture.advanceX()
+        var repin = FamilyRepin(family: try Family.load(root: fixture.root))
+        var reached: [String: Bool] = [:]
+        repin.gate = { tree, member, _ in
+            reached[member.name] = FileManager.default.fileExists(
+                atPath: tree.appendingPathComponent("../X/Package.swift").path
+            )
+        }
+        repin.log = { _ in }
+        _ = try repin.run(bumps: [
+            "x": try fixture.git(["rev-parse", "origin/main"], in: fixture.root.appendingPathComponent("X"))
+        ])
+        #expect(reached == ["A": true, "B": true])
+        #expect(FamilyRepin.clean(try Family.load(root: fixture.root)) == ["A", "B"])
+        let left = try FileManager.default.contentsOfDirectory(atPath: fixture.root.path)
+            .filter { $0.hasPrefix(".repin-") }
+        #expect(left.isEmpty, "clean removes the worktrees beside the clones")
+    }
 }

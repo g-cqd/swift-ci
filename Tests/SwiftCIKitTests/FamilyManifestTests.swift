@@ -53,4 +53,34 @@ struct FamilyManifestTests {
                 == "    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@\(Self.new) # swift-ci bbbbbbb\n      - uses: g-cqd/swift-ci@\(Self.new)\n"
         )
     }
+
+    /// Resolved through mirrors to the local clones, a pin is recorded as `localSourceControl`, which SwiftPM rejects once the
+    /// mirrors are gone; its location is still the URL, so it is put back as `remoteSourceControl`. A real local path stays.
+    @Test func aPinResolvedThroughAMirrorIsRecordedAsRemoteAgain() {
+        let resolved = """
+            {
+              "pins" : [
+                {
+                  "identity" : "aemi",
+                  "kind" : "localSourceControl",
+                  "location" : "https://github.com/Aemi-Studio/aemi.git",
+                  "state" : { "revision" : "0bae2edb1a89bd3d931fb3122c2184cc5c368834" }
+                },
+                {
+                  "identity" : "vendored",
+                  "kind" : "localSourceControl",
+                  "location" : "/Users/x/vendored",
+                  "state" : { "revision" : "1111111111111111111111111111111111111111" }
+                }
+              ]
+            }
+            """
+        let fixed = FamilyManifest.remoteKinds(in: resolved)
+        let remote =
+            "\"kind\" : \"remoteSourceControl\",\n      \"location\" : \"https://github.com/Aemi-Studio/aemi.git\""
+        let local = "\"kind\" : \"localSourceControl\",\n      \"location\" : \"/Users/x/vendored\""
+        #expect(resolved.contains(local) && !resolved.contains(remote))
+        #expect(fixed.contains(remote) && fixed.contains(local))
+        #expect(fixed.count == resolved.count + 1, "only the one kind changes")
+    }
 }

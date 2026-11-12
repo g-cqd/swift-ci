@@ -97,6 +97,7 @@ public struct FamilyRepin {
             throw SwiftCIError("\(member.name)'s gate failed in \(tree.path), left for a look: \(error)")
         }
         restoreMirrors(mirrors)
+        try recordPinsAsRemote(tree, member: member)
         try Shell.run(["git", "add", "-u"], directory: tree)
         try Shell.run(
             ["git", "commit", "-q", "-m", "build: \(summary.joined(separator: ", ")) (swift-ci family repin)"],

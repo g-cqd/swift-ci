@@ -18,6 +18,9 @@ public enum FamilyManifest {
             #"\.package\(\s*url:\s*"https://github\.com/(g-cqd|Aemi-Studio)/([^/"]+?)(?:\.git)?"\s*,\s*revision:\s*"([0-9a-f]{40})""#
     )
     private static let sibling = try? NSRegularExpression(pattern: #"\.package\(\s*path:\s*"\.\./([^/"]+)/?""#)
+    private static let mirrored = try? NSRegularExpression(
+        pattern: #"("kind"\s*:\s*")localSourceControl("\s*,\s*"location"\s*:\s*"(?:https?://|ssh://|git@))"#
+    )
     private static let workflowUse = try? NSRegularExpression(
         pattern: #"(g-cqd/swift-ci(?:/[^@\s"']*)?@)([0-9a-f]{40})((?:\s*#\s*swift-ci\s+)([0-9a-f]{7,40}))?"#
     )
@@ -43,6 +46,17 @@ public enum FamilyManifest {
         }
     }
 
+    /// `text`, a `Package.resolved` resolved through mirrors to local clones, with each pin whose location is a URL recorded as
+    /// `remoteSourceControl` again: SwiftPM writes `localSourceControl` for a mirrored pin and rejects that once the mirrors are gone.
+    public static func remoteKinds(in text: String) -> String {
+        guard let mirrored else { return text }
+        return mirrored.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: "$1remoteSourceControl$2"
+        )
+    }
+
     /// The swift-ci commits `text`, a workflow, uses.
     public static func swiftCIRevisions(in text: String) -> [String] {
         captures(workflowUse, 2, in: text)
@@ -59,7 +73,9 @@ public enum FamilyManifest {
     }
 
     /// Whether the patterns compiled.
-    public static var expressionsCompile: Bool { edge != nil && sibling != nil && workflowUse != nil }
+    public static var expressionsCompile: Bool {
+        edge != nil && sibling != nil && mirrored != nil && workflowUse != nil
+    }
 
     /// Group `index` of each match of `expression` in `text`, in order.
     private static func captures(_ expression: NSRegularExpression?, _ index: Int, in text: String) -> [String] {

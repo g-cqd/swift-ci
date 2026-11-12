@@ -54,6 +54,16 @@ extension FamilyRepin {
         }
     }
 
+    /// Each tracked `Package.resolved` of `member` with the pins its resolve took through the mirrors recorded as remote again.
+    func recordPinsAsRemote(_ tree: URL, member: Family.Member) throws {
+        for manifest in member.manifests {
+            let resolved = tree.appendingPathComponent(manifest).deletingLastPathComponent()
+                .appendingPathComponent("Package.resolved")
+            guard FileManager.default.fileExists(atPath: resolved.path) else { continue }
+            try rewrite(resolved, FamilyManifest.remoteKinds)
+        }
+    }
+
     /// A checkout of swift-ci at `revision`, for a gate's `.ci/swift-ci` to build when swift-ci itself moved in this run.
     func sourceTree(of swiftCI: Family.Member, at revision: String) throws -> URL {
         let tree = Self.worktree("swift-ci-source", in: family)

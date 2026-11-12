@@ -20,6 +20,14 @@ let usage = """
       swift-ci publish --assets DIR --tag T --repository OWNER/NAME [--dry-run]
       swift-ci release-note NOTE ASSETS        lint a release note against the .sha256 files in ASSETS, print it filled
       swift-ci version
+      swift-ci family graph                    the family under --root (the umbrella): its repositories by pin level
+      swift-ci family clean                    remove what a repin without --push left (worktrees, family-repin branches)
+      swift-ci family repin REPO[@REV]... [--heads] [--push]
+                                               repin what a change to REPO forces, level by level, each in a
+                                               worktree beside its checkout, gated by its swift-ci quality; REV is
+                                               REPO's origin/main by default; --heads takes every member's local
+                                               main (the family built at its heads); --push pushes each level
+                                               and the umbrella, else the commits stay on family-repin branches
 
     Options: --root DIR (default: the current directory), --config FILE (default: .ci/action.json).
     """
@@ -43,7 +51,7 @@ struct Arguments {
                 options[argument] = arguments[index + 1]
                 index += 2
             } else if argument.hasPrefix("--") {
-                guard ["--dry-run", "--help"].contains(argument) else {
+                guard ["--dry-run", "--help", "--push", "--heads"].contains(argument) else {
                     throw SwiftCIError("unknown option \(argument)")
                 }
                 flags.insert(argument)
@@ -107,6 +115,8 @@ func main() throws {
     switch command {
         case "version":
             print(version)
+        case "family":
+            try runFamily(arguments, root: root)
         case "init":
             let configuration = try Configuration.load(root: root, file: configFile)
             let project = try Project.detect(root: root, configuration: configuration, requireSchemes: false)
@@ -248,4 +258,53 @@ do {
 } catch {
     FileHandle.standardError.write(Data("swift-ci: \(error)\n".utf8))
     exit(2)
+}
+
+/// `swift-ci family graph` and `swift-ci family repin` (the family's repins, the owner's option A and E, 2026-11-12).
+func runFamily(_ arguments: Arguments, root: URL) throws {
+    guard let sub = arguments.positional.first else { throw SwiftCIError("family needs graph or repin") }
+    switch sub {
+        case "graph":
+            let family = try Family.load(root: root)
+            for (index, level) in family.levels().enumerated() {
+                print("level \(index): \(level.map(\.name).joined(separator: ", "))")
+            }
+        case "repin":
+            for name in try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+            where FileManager.default.fileExists(atPath: root.appendingPathComponent(name + "/.git").path) {
+                try? Shell.run(["git", "fetch", "-q", "origin"], directory: root.appendingPathComponent(name))
+            }
+            let family = try Family.load(root: root)
+            var bumps: [String: String] = [:]
+            if arguments.flags.contains("--heads") {
+                for member in family.members {
+                    bumps[member.package] =
+                        try Shell.output(["git", "rev-parse", "main"], directory: member.path, quiet: true)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            for target in arguments.positional.dropFirst() {
+                let parts = target.split(separator: "@", maxSplits: 1).map(String.init)
+                guard let member = family.member(parts[0]) else {
+                    throw SwiftCIError("no member \(parts[0]) in \(root.path)")
+                }
+                let revision = try Shell.output(
+                    ["git", "rev-parse", parts.count > 1 ? parts[1] : "origin/main"],
+                    directory: member.path,
+                    quiet: true
+                )
+                bumps[member.package] = revision.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard !bumps.isEmpty else { throw SwiftCIError("family repin needs a REPO, or --heads") }
+            var repin = FamilyRepin(family: family)
+            repin.push = arguments.flags.contains("--push")
+            let changes = try repin.run(bumps: bumps)
+            for change in changes { print("\(change.member) \(change.revision.prefix(7))") }
+            if changes.isEmpty { print("nothing to repin: every pin already names those revisions") }
+        case "clean":
+            let cleaned = FamilyRepin.clean(try Family.load(root: root))
+            print(cleaned.isEmpty ? "nothing to clean" : "cleaned: \(cleaned.joined(separator: ", "))")
+        default:
+            throw SwiftCIError("family has graph, repin and clean, not \(sub)")
+    }
 }

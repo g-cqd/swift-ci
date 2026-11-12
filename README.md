@@ -183,6 +183,27 @@ swift run swift-ci plan --event push --ref refs/heads/main --base HEAD~1
 swift package --disable-sandbox swift-ci local   # from a package that depends on swift-ci
 ```
 
+## Repinning a family of packages
+
+Packages that require each other by exact revision form a family: a change at the bottom needs a pin commit in everything
+above it, one dependency level at a time. `swift-ci family` does that from a directory holding the family's clones (an umbrella
+repository with them as submodules, or plain clones side by side):
+
+```sh
+swift-ci family graph --root ~/family                 # the repositories, by pin level
+swift-ci family repin AemiJSON --root ~/family        # repin what AemiJSON's origin/main forces, without pushing
+swift-ci family repin AemiJSON --push --root ~/family # the same, each level pushed before the next, the umbrella after
+swift-ci family repin --heads --root ~/family         # the family built at every clone's local main, nothing pushed
+swift-ci family clean --root ~/family                 # remove what a run without --push left
+```
+
+Each repository is changed in a worktree off its `origin/main`, under `.family-repin/` beside the clones: its manifests' pins
+rewritten (and a workflow's swift-ci commit when swift-ci moves), its tracked `Package.resolved` files resolved again against the
+local clones (through a mirrors file the run removes, so a commit not pushed yet is found), then `swift build` and its
+`.ci/swift-ci run quality`; a commit is made only when they pass. Without `--push` the commits stay on a `family-repin` branch of
+each repository; with it, each is pushed to `origin/main`, a clean checkout on `main` is fast-forwarded (one with work of its own is
+left as it is), and the umbrella's submodules follow. `--push` refuses a revision its origin lacks.
+
 ## Design
 
 - The workflow only wires; the CLI decides (`SwiftCIKit`, tested: configuration, detection, planning, steps, the tool

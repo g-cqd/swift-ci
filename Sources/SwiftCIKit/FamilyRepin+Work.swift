@@ -108,7 +108,7 @@ extension FamilyRepin {
         }
     }
 
-    /// Removes what runs without `push` left: each member's worktree beside the clones and its `family-repin` branch;
+    /// Removes what runs without `push` left: each member's worktree under `.family-repin` and its `family-repin` branch;
     /// returns the members it cleaned.
     public static func clean(_ family: Family) -> [String] {
         var cleaned: [String] = []
@@ -126,7 +126,6 @@ extension FamilyRepin {
         if let swiftCI = family.member("swift-ci"), FileManager.default.fileExists(atPath: source.path) {
             try? Shell.run(["git", "worktree", "remove", "--force", source.path], directory: swiftCI.path)
         }
-        // What an earlier version left under `.family-repin`.
         try? FileManager.default.removeItem(at: family.root.appendingPathComponent(".family-repin"))
         return cleaned
     }
@@ -144,5 +143,15 @@ extension FamilyRepin {
         let text = try String(contentsOf: file, encoding: .utf8)
         let rewritten = change(text)
         if rewritten != text { try rewritten.write(to: file, atomically: true, encoding: .utf8) }
+    }
+
+    /// Each sibling `member` requires by path, checked out beside its worktree at this run's revision of it (its origin/main when
+    /// the run has none), so the gate builds what the origins will hold, never a clone and the work in it.
+    func checkOutSiblings(of member: Family.Member, at revisions: [String: String]) throws {
+        for name in member.siblings {
+            guard let sibling = family.member(name) else { continue }
+            let tree = Self.worktree(sibling.name, in: family)
+            try freshWorktree(tree, of: sibling, ["--detach", tree.path, revisions[sibling.package] ?? "origin/main"])
+        }
     }
 }

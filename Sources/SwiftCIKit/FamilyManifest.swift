@@ -17,6 +17,7 @@ public enum FamilyManifest {
         pattern:
             #"\.package\(\s*url:\s*"https://github\.com/(g-cqd|Aemi-Studio)/([^/"]+?)(?:\.git)?"\s*,\s*revision:\s*"([0-9a-f]{40})""#
     )
+    private static let sibling = try? NSRegularExpression(pattern: #"\.package\(\s*path:\s*"\.\./([^/"]+)/?""#)
     private static let workflowUse = try? NSRegularExpression(
         pattern: #"(g-cqd/swift-ci(?:/[^@\s"']*)?@)([0-9a-f]{40})((?:\s*#\s*swift-ci\s+)([0-9a-f]{7,40}))?"#
     )
@@ -28,6 +29,9 @@ public enum FamilyManifest {
                 Pin(owner: group(match, 1, text), repository: group(match, 2, text), revision: group(match, 3, text))
             }
     }
+
+    /// The siblings `text`, a `Package.swift`, requires by path (`.package(path: "../X")`), as written, in order.
+    public static func siblings(in text: String) -> [String] { captures(sibling, 1, in: text) }
 
     /// `text` with each pin of a package in `revisions` (by ``Pin/package``) moved to its new revision; nothing else changes.
     public static func rewriting(_ text: String, to revisions: [String: String]) -> String {
@@ -41,7 +45,7 @@ public enum FamilyManifest {
 
     /// The swift-ci commits `text`, a workflow, uses.
     public static func swiftCIRevisions(in text: String) -> [String] {
-        matches(workflowUse, in: text).map { group($0, 2, text) }
+        captures(workflowUse, 2, in: text)
     }
 
     /// `text`, a workflow, using swift-ci at `revision`, with the short commit a comment after it names updated too.
@@ -54,8 +58,13 @@ public enum FamilyManifest {
         }
     }
 
-    /// Whether both patterns compiled.
-    public static var expressionsCompile: Bool { edge != nil && workflowUse != nil }
+    /// Whether the patterns compiled.
+    public static var expressionsCompile: Bool { edge != nil && sibling != nil && workflowUse != nil }
+
+    /// Group `index` of each match of `expression` in `text`, in order.
+    private static func captures(_ expression: NSRegularExpression?, _ index: Int, in text: String) -> [String] {
+        matches(expression, in: text).map { group($0, index, text) }
+    }
 
     private static func matches(_ expression: NSRegularExpression?, in text: String) -> [NSTextCheckingResult] {
         expression?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []

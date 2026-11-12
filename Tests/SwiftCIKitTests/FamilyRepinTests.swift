@@ -161,26 +161,31 @@ struct FamilyRepinTests {
         #expect(try fixture.pins(of: "B", at: FamilyRepin.branch) == ["a": changes[0].revision, "x": newX])
     }
 
-    /// A manifest's `.package(path: "../X")` is relative to its checkout, so each worktree sits beside the clones, where that path
-    /// still reaches the sibling clone.
-    @Test func eachWorktreeSitsBesideTheClonesSoARelativePathDependencyStillResolves() throws {
-        let (fixture, _, _) = try family()
-        _ = try fixture.advanceX()
+    /// A manifest's `.package(path: "../A")` names a sibling: it orders the graph like a pin, and from the worktree it reaches A at
+    /// this run's revision of it, never the clone and the work in it.
+    @Test func aSiblingPathDependencyOrdersTheGraphAndReachesTheSiblingAtThisRunsRevision() throws {
+        let (fixture, x, _) = try family()
+        let manifest = fixture.manifest(requiring: [("X", x)])
+            .replacingOccurrences(of: "    ]\n)", with: "        .package(path: \"../A\"),\n    ]\n)")
+        try fixture.member("U", manifest)
+        try "wip\n".write(to: fixture.root.appendingPathComponent("A/LOCAL"), atomically: true, encoding: .utf8)
+        let newX = try fixture.advanceX()
         var repin = FamilyRepin(family: try Family.load(root: fixture.root))
-        var reached: [String: Bool] = [:]
+        #expect(repin.family.levels().map { $0.map(\.name) } == [["X"], ["A"], ["B", "U"]])
+        var seen: [String] = []
         repin.gate = { tree, member, _ in
-            reached[member.name] = FileManager.default.fileExists(
-                atPath: tree.appendingPathComponent("../X/Package.swift").path
-            )
+            guard member.name == "U" else { return }
+            let sibling = tree.appendingPathComponent("../A")
+            seen.append(try fixture.git(["rev-parse", "HEAD"], in: sibling))
+            if FileManager.default.fileExists(atPath: sibling.appendingPathComponent("LOCAL").path) {
+                seen.append("clone")
+            }
         }
         repin.log = { _ in }
-        _ = try repin.run(bumps: [
-            "x": try fixture.git(["rev-parse", "origin/main"], in: fixture.root.appendingPathComponent("X"))
-        ])
-        #expect(reached == ["A": true, "B": true])
-        #expect(FamilyRepin.clean(try Family.load(root: fixture.root)) == ["A", "B"])
-        let left = try FileManager.default.contentsOfDirectory(atPath: fixture.root.path)
-            .filter { $0.hasPrefix(".repin-") }
-        #expect(left.isEmpty, "clean removes the worktrees beside the clones")
+        let changes = try repin.run(bumps: ["x": newX])
+        #expect(changes.map(\.member) == ["A", "B", "U"])
+        #expect(seen == [changes[0].revision])
+        #expect(FamilyRepin.clean(try Family.load(root: fixture.root)) == ["A", "B", "U"])
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent(".family-repin").path))
     }
 }

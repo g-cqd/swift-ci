@@ -11,10 +11,14 @@ public struct Family: Sendable {
         public let manifests: [String]
         /// What those manifests pin, by package.
         public let pins: [FamilyManifest.Pin]
+        /// The repositories beside it that those manifests require by path, as written: `../X` is X's checkout.
+        public let siblings: [String]
         /// The package identity SwiftPM compares.
         public var package: String { name.lowercased() }
-        /// The packages it requires by revision.
-        public var requires: Set<String> { Set(pins.map(\.package)).subtracting([package]) }
+        /// The packages it requires, by revision or as a sibling.
+        public var requires: Set<String> {
+            Set(pins.map(\.package) + siblings.map { $0.lowercased() }).subtracting([package])
+        }
     }
 
     public let root: URL
@@ -41,11 +45,13 @@ public struct Family: Sendable {
             )
             let manifests = listed.split(separator: "\n").map(String.init).filter(isManifest)
             var pins: [FamilyManifest.Pin] = []
+            var siblings: [String] = []
             for manifest in manifests {
                 let text = try Shell.output(["git", "show", "origin/main:\(manifest)"], directory: path, quiet: true)
                 pins += FamilyManifest.pins(in: text)
+                if manifest == "Package.swift" { siblings += FamilyManifest.siblings(in: text) }
             }
-            members.append(Member(name: name, path: path, manifests: manifests, pins: pins))
+            members.append(Member(name: name, path: path, manifests: manifests, pins: pins, siblings: siblings))
         }
         return Family(root: root, members: members)
     }

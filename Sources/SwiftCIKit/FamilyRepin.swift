@@ -24,10 +24,9 @@ public struct FamilyRepin {
 
     public init(family: Family) { self.family = family }
 
-    /// Where `name`'s worktree goes: beside the clones, as `.repin-name`, so a manifest's `.package(path: "../X")` still reaches
-    /// the sibling clone.
+    /// Where `name`'s worktree goes: `.family-repin/name`, where a manifest's `.package(path: "../X")` reaches X's worktree.
     static func worktree(_ name: String, in family: Family) -> URL {
-        family.root.appendingPathComponent(".repin-" + name)
+        family.root.appendingPathComponent(".family-repin").appendingPathComponent(name)
     }
 
     /// Repins every member whose pins `bumps` (package to revision) and the commits of this run make stale, in order; returns what
@@ -47,7 +46,10 @@ public struct FamilyRepin {
             revisions[member.package] = revision
             changes.append(Change(member: member.name, revision: revision, moved: moved))
         }
-        if push, !changes.isEmpty { try updateUmbrella(bumps: bumps, changes: changes) }
+        if push {
+            if !changes.isEmpty { try updateUmbrella(bumps: bumps, changes: changes) }
+            _ = Self.clean(family)
+        }
         return changes
     }
 
@@ -80,6 +82,7 @@ public struct FamilyRepin {
         let tree = Self.worktree(member.name, in: family)
         try Shell.run(["git", "fetch", "-q", "origin"], directory: member.path)
         try freshWorktree(tree, of: member, ["-B", Self.branch, tree.path, "origin/main"])
+        try checkOutSiblings(of: member, at: revisions)
         try rewrite(tree, member: member, moved: moved)
         let mirrors = try writeMirrors(in: tree, member: member)
         try resolveLocks(tree, member: member)

@@ -193,6 +193,7 @@ repository with them as submodules, or plain clones side by side):
 swift-ci family graph --root ~/family                 # the repositories, by pin level
 swift-ci family repin AemiJSON --root ~/family        # repin what AemiJSON's origin/main forces, without pushing
 swift-ci family repin AemiJSON --push --root ~/family # the same, each level pushed before the next, the umbrella after
+swift-ci family repin --all --push --root ~/family    # every pin brought up to date with every member's origin/main
 swift-ci family repin --heads --root ~/family         # the family built at every clone's local main, nothing pushed
 swift-ci family clean --root ~/family                 # remove what a run without --push left
 ```

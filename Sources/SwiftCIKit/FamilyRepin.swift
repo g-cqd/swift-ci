@@ -27,13 +27,16 @@ public struct FamilyRepin {
     /// The worktrees a run makes, under the family's directory.
     var work: URL { family.root.appendingPathComponent(".family-repin") }
 
-    /// Repins every member that `bumps` (package to revision) forces, in order; returns what it changed.
+    /// Repins every member whose pins `bumps` (package to revision) and the commits of this run make stale, in order; returns what
+    /// it changed.
     public mutating func run(bumps: [String: String]) throws -> [Change] {
         var revisions = Dictionary(uniqueKeysWithValues: bumps.map { ($0.key.lowercased(), $0.value) })
         if push { try requirePushed(revisions) }
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         var changes: [Change] = []
-        for member in family.dependents(of: Set(revisions.keys)) {
+        // Every member in level order whose pins differ from this run's revisions: those `bumps` force, and a named one too when
+        // it pins something stale (bringing the whole family up to date names every member at its origin).
+        for member in family.levels().joined() {
             let moved = member.pins.reduce(into: [String: String]()) { moved, pin in
                 if let revision = revisions[pin.package], revision != pin.revision { moved[pin.package] = revision }
             }

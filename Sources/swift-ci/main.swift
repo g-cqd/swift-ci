@@ -22,10 +22,11 @@ let usage = """
       swift-ci version
       swift-ci family graph                    the family under --root (the umbrella): its repositories by pin level
       swift-ci family clean                    remove what a repin without --push left (worktrees, family-repin branches)
-      swift-ci family repin REPO[@REV]... [--heads] [--push]
+      swift-ci family repin REPO[@REV]... [--all] [--heads] [--push]
                                                repin what a change to REPO forces, level by level, each in a
                                                worktree beside its checkout, gated by its swift-ci quality; REV is
-                                               REPO's origin/main by default; --heads takes every member's local
+                                               REPO's origin/main by default; --all every member at its origin/main
+                                               (the family up to date); --heads takes every member's local
                                                main (the family built at its heads); --push pushes each level
                                                and the umbrella, else the commits stay on family-repin branches
 
@@ -51,7 +52,7 @@ struct Arguments {
                 options[argument] = arguments[index + 1]
                 index += 2
             } else if argument.hasPrefix("--") {
-                guard ["--dry-run", "--help", "--push", "--heads"].contains(argument) else {
+                guard ["--dry-run", "--help", "--push", "--heads", "--all"].contains(argument) else {
                     throw SwiftCIError("unknown option \(argument)")
                 }
                 flags.insert(argument)
@@ -276,12 +277,13 @@ func runFamily(_ arguments: Arguments, root: URL) throws {
             }
             let family = try Family.load(root: root)
             var bumps: [String: String] = [:]
-            if arguments.flags.contains("--heads") {
-                for member in family.members {
-                    bumps[member.package] =
-                        try Shell.output(["git", "rev-parse", "main"], directory: member.path, quiet: true)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                }
+            // --all: every member at its origin/main; --heads: every member at its local main.
+            let every =
+                arguments.flags.contains("--heads") ? "main" : arguments.flags.contains("--all") ? "origin/main" : nil
+            for member in family.members where every != nil {
+                bumps[member.package] =
+                    try Shell.output(["git", "rev-parse", every ?? ""], directory: member.path, quiet: true)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             for target in arguments.positional.dropFirst() {
                 let parts = target.split(separator: "@", maxSplits: 1).map(String.init)
@@ -295,7 +297,7 @@ func runFamily(_ arguments: Arguments, root: URL) throws {
                 )
                 bumps[member.package] = revision.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            guard !bumps.isEmpty else { throw SwiftCIError("family repin needs a REPO, or --heads") }
+            guard !bumps.isEmpty else { throw SwiftCIError("family repin needs a REPO, --all or --heads") }
             var repin = FamilyRepin(family: family)
             repin.push = arguments.flags.contains("--push")
             let changes = try repin.run(bumps: bumps)

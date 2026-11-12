@@ -144,4 +144,20 @@ struct FamilyRepinTests {
             try repin.run(bumps: ["X": try fixture.git(["rev-parse", "HEAD"], in: x)])
         }
     }
+
+    @Test func everyMemberAtItsOriginBringsTheStaleOnesUpToDateAndRepinsNamedOnesToo() throws {
+        let (fixture, _, _) = try family()
+        let newX = try fixture.advanceX()
+        let family = try Family.load(root: fixture.root)
+        var all: [String: String] = [:]
+        for member in family.members {
+            all[member.package] = try fixture.git(["rev-parse", "origin/main"], in: member.path)
+        }
+        var repin = FamilyRepin(family: family)
+        repin.gate = { _, _, _ in }
+        repin.log = { _ in }
+        let changes = try repin.run(bumps: all)
+        #expect(changes.map(\.member) == ["A", "B"], "A and B pinned the old X, though all were named")
+        #expect(try fixture.pins(of: "B", at: FamilyRepin.branch) == ["a": changes[0].revision, "x": newX])
+    }
 }

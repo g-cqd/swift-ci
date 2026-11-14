@@ -1,17 +1,32 @@
 public import Foundation
 
 extension FamilyRepin {
+    /// Where SwiftPM is sent for the clone at `path`: the checkout, or, for a submodule's checkout (its `.git` is a file that
+    /// says where the git directory is, as under an umbrella repository), that git directory. SwiftPM takes a local
+    /// repository only where `git rev-parse --git-dir` answers `.git` or `.`, and refuses a submodule's checkout ("cannot
+    /// clone from local directory"); the git directory holds the same commits, the ones not pushed yet included.
+    public static func mirrorLocation(of path: URL) -> String {
+        var isDirectory: ObjCBool = false
+        let marker = path.appendingPathComponent(".git").path
+        guard FileManager.default.fileExists(atPath: marker, isDirectory: &isDirectory), !isDirectory.boolValue,
+            let directory = try? Shell.output(["git", "rev-parse", "--absolute-git-dir"], directory: path, quiet: true)
+        else { return path.path }
+        let trimmed = directory.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? path.path : trimmed
+    }
+
     /// Mirrors files in each of `member`'s package directories pointing the family at its local clones, where a commit of this
     /// run is before it is pushed; returns them, to be removed or restored before the commit.
-    func writeMirrors(in tree: URL, member: Family.Member) throws -> [URL] {
+    public func writeMirrors(in tree: URL, member: Family.Member) throws -> [URL] {
         var entries: [[String: String]] = []
         let owners = Dictionary(grouping: family.members.flatMap(\.pins), by: \.package)
             .mapValues { Set($0.map(\.owner)) }
         for other in family.members {
+            let mirror = Self.mirrorLocation(of: other.path)
             for owner in owners[other.package] ?? ["g-cqd"] {
                 for suffix in ["", ".git"] {
                     entries.append([
-                        "original": "https://github.com/\(owner)/\(other.name)\(suffix)", "mirror": other.path.path
+                        "original": "https://github.com/\(owner)/\(other.name)\(suffix)", "mirror": mirror
                     ])
                 }
             }
@@ -34,7 +49,7 @@ extension FamilyRepin {
     }
 
     /// Puts back the mirrors files a repository had, and removes those it did not.
-    func restoreMirrors(_ files: [URL]) {
+    public func restoreMirrors(_ files: [URL]) {
         for file in files {
             let saved = file.appendingPathExtension("family-repin")
             try? FileManager.default.removeItem(at: file)

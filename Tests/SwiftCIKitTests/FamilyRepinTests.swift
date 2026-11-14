@@ -163,6 +163,32 @@ struct FamilyRepinTests {
 
     /// A manifest's `.package(path: "../A")` names a sibling: it orders the graph like a pin, and from the worktree it reaches A at
     /// this run's revision of it, never the clone and the work in it.
+    /// SwiftPM takes a local repository only where `git rev-parse --git-dir` says `.git` or `.`: a submodule's checkout, whose
+    /// `.git` is a file, is refused ("cannot clone from local directory"), and its git directory is taken.
+    @Test func aMemberThatIsASubmoduleCheckoutIsMirroredAtItsGitDirectory() throws {
+        let (fixture, _, _) = try family()
+        let x = fixture.root.appendingPathComponent("X")
+        #expect(FamilyRepin.mirrorLocation(of: x) == x.path, "a plain clone is its own mirror")
+        // X made what an umbrella's submodule is: its git directory elsewhere, a `.git` file that says where.
+        let modules = fixture.root.appendingPathComponent(".git/modules")
+        try FileManager.default.createDirectory(at: modules, withIntermediateDirectories: true)
+        let moved = modules.appendingPathComponent("X")
+        try FileManager.default.moveItem(at: x.appendingPathComponent(".git"), to: moved)
+        try "gitdir: ../.git/modules/X\n".write(to: x.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        _ = try fixture.git(["config", "core.worktree", x.path], in: moved)
+        let location = FamilyRepin.mirrorLocation(of: x)
+        #expect(URL(fileURLWithPath: location).resolvingSymlinksInPath() == moved.resolvingSymlinksInPath())
+        #expect(try fixture.git(["-C", location, "rev-parse", "--git-dir"], in: fixture.root) == ".")
+        // And the mirrors file a repin writes for a member says so.
+        let family = try Family.load(root: fixture.root)
+        let a = try #require(family.member("a"))
+        let files = try FamilyRepin(family: family).writeMirrors(in: a.path, member: a)
+        defer { FamilyRepin(family: family).restoreMirrors(files) }
+        let text = try String(contentsOf: try #require(files.first), encoding: .utf8)
+        #expect(text.contains("modules/X\"") || text.contains("modules\\/X\""))
+        #expect(!text.contains("\"mirror\":\"\(x.path)\""))
+    }
+
     @Test func aSiblingPathDependencyOrdersTheGraphAndReachesTheSiblingAtThisRunsRevision() throws {
         let (fixture, x, _) = try family()
         let manifest = fixture.manifest(requiring: [("X", x)])

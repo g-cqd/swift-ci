@@ -200,7 +200,7 @@ swift-ci family clean --root ~/family                 # remove what a run withou
 
 Each repository is changed in a worktree off its `origin/main` under `.family-repin/` (a sibling it requires by `.package(path: "../X")` is checked out beside it at the run's revision of X, and orders the graph like a pin): its manifests' pins
 rewritten (and a workflow's swift-ci commit when swift-ci moves), its tracked `Package.resolved` files resolved again against the
-local clones (through a mirrors file the run removes, so a commit not pushed yet is found), then `swift build` and its
+local clones (through a mirrors file the run removes, so a commit not pushed yet is found; a submodule's checkout is mirrored at its git directory, since SwiftPM refuses a checkout whose `.git` is a file), then `swift build` and its
 `.ci/swift-ci run quality`; a commit is made only when they pass. Without `--push` the commits stay on a `family-repin` branch of
 each repository; with it, each is pushed to `origin/main`, a clean checkout on `main` is fast-forwarded (one with work of its own is
 left as it is), and the umbrella's submodules follow. `--push` refuses a revision its origin lacks.

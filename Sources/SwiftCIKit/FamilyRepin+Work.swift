@@ -155,6 +155,24 @@ extension FamilyRepin {
         return cleaned
     }
 
+    /// Removes the worktree of a member whose commit is pushed. What its gate left there (a build's folders, which something
+    /// may still be writing to) must not stop the run, which has other members to reach: forced, then the folder removed by
+    /// hand and git told to forget it. One that stays is said, and `family clean` removes it.
+    func putAway(_ tree: URL, of member: Family.Member) {
+        if (try? Shell.output(["git", "worktree", "remove", "--force", tree.path], directory: member.path, quiet: true))
+            != nil
+        {
+            return
+        }
+        for _ in 0 ..< 3 where FileManager.default.fileExists(atPath: tree.path) {
+            try? FileManager.default.removeItem(at: tree)
+        }
+        _ = try? Shell.output(["git", "worktree", "prune"], directory: member.path, quiet: true)
+        if FileManager.default.fileExists(atPath: tree.path) {
+            log("\(member.name): its worktree at \(tree.path) could not be removed; `family clean` removes it")
+        }
+    }
+
     /// A worktree of `member` at `tree`, made anew: `arguments` follow `git worktree add -q`.
     func freshWorktree(_ tree: URL, of member: Family.Member, _ arguments: [String]) throws {
         if FileManager.default.fileExists(atPath: tree.path) {

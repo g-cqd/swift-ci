@@ -107,7 +107,7 @@ public struct FamilyRepin {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if push {
             try Shell.run(["git", "push", "-q", "origin", "HEAD:main"], directory: tree)
-            try Shell.run(["git", "worktree", "remove", tree.path], directory: member.path)
+            putAway(tree, of: member)
             try Shell.run(["git", "branch", "-D", "-q", Self.branch], directory: member.path)
             fastForward(member)
         }

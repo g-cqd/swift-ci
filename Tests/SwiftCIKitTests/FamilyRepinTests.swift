@@ -131,6 +131,26 @@ struct FamilyRepinTests {
         #expect(try fixture.pins(of: "B", at: "origin/main")["a"] == changes.first?.revision)
     }
 
+    @Test func whatAGateLeavesInAWorktreeDoesNotStopTheRunOnceItsCommitIsPushed() throws {
+        let (fixture, _, _) = try family()
+        let newX = try fixture.advanceX()
+        var repin = FamilyRepin(family: try Family.load(root: fixture.root))
+        repin.push = true
+        // As a build does: files the commit does not hold, some in folders.
+        repin.gate = { tree, _, _ in
+            let left = tree.appendingPathComponent("left/behind")
+            try FileManager.default.createDirectory(at: left, withIntermediateDirectories: true)
+            try "x".write(to: left.appendingPathComponent("file"), atomically: true, encoding: .utf8)
+        }
+        repin.log = { _ in }
+        let changes = try repin.run(bumps: ["X": newX])
+        #expect(changes.map(\.member) == ["A", "B"], "B was reached after A's worktree was put away")
+        let trees = fixture.root.appendingPathComponent(".family-repin")
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: trees.path)) ?? []).isEmpty)
+        let listed = try fixture.git(["worktree", "list"], in: fixture.root.appendingPathComponent("A"))
+        #expect(!listed.contains(".family-repin"))
+    }
+
     @Test func aPushedRepinRefusesARevisionTheOriginLacks() throws {
         let (fixture, _, _) = try family()
         let x = fixture.root.appendingPathComponent("X")

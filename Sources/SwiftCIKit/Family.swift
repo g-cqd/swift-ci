@@ -38,11 +38,14 @@ public struct Family: Sendable {
             guard FileManager.default.fileExists(atPath: path.appendingPathComponent(".git").path),
                 FileManager.default.fileExists(atPath: path.appendingPathComponent("Package.swift").path)
             else { continue }
-            let listed = try Shell.output(
-                ["git", "ls-tree", "-r", "--name-only", "origin/main"],
-                directory: path,
-                quiet: true
-            )
+            // A repository with no `origin/main` (kept local, never published) has nothing to repin from: not a member.
+            guard
+                let listed = try? Shell.output(
+                    ["git", "ls-tree", "-r", "--name-only", "origin/main"],
+                    directory: path,
+                    quiet: true
+                )
+            else { continue }
             let manifests = listed.split(separator: "\n").map(String.init).filter(isManifest)
             var pins: [FamilyManifest.Pin] = []
             var siblings: [String] = []

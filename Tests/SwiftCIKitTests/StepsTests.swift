@@ -416,6 +416,15 @@ struct CommandLineHelpTests {
     }
 }
 
+struct LinuxArm64PlatformTests {
+    /// Tools are published for Linux x86_64 only. An arm64 Linux machine that runs x86_64 programs (a VM with Rosetta, its
+    /// binfmt entry registered) uses those archives; one that does not has no archive, as before.
+    @Test func `an arm64 Linux machine with Rosetta takes the Linux x86_64 archives, one without takes none`() {
+        #expect(ToolLock.Platform.linuxArm64Fallback(rosetta: true) == .linuxX86_64)
+        #expect(ToolLock.Platform.linuxArm64Fallback(rosetta: false) == nil)
+    }
+}
+
 struct LocalToolLockTests {
     @Test func `litmus is pinned for local mutation testing on macOS only`() throws {
         let litmus = try ToolLock.builtIn.tool(named: "litmus")

@@ -82,6 +82,83 @@ struct FamilyRepinTests {
         return (fixture, x, a)
     }
 
+    /// A repository with no `origin/main` (one kept local, not published) is not part of the family: it must not stop the
+    /// graph of the others (seen 2026-11-24: `family graph` died with git's 128 on a local-only repository).
+    /// The gate's build (2026-11-24, the owner: fewer builds, a faster repin): none where the host cannot build the member, and its
+    /// products kept between runs, where a worktree is deleted after each push.
+    /// A host with one toolchain installed (the VM's swiftly has 6.4.3, the members pin 6.4.0 and others) builds every member with it:
+    /// that toolchain's `bin` goes first on the PATH, which swiftly's proxy and its `.swift-version` then never see.
+    @Test func `one installed toolchain can serve every member, whatever its swift-version file says`() {
+        #expect(FamilyRepin.toolchainEnvironment(bin: nil, path: "/usr/bin") == [:])
+        #expect(FamilyRepin.toolchainEnvironment(bin: "", path: "/usr/bin") == [:])
+        #expect(
+            FamilyRepin.toolchainEnvironment(bin: "/tc/usr/bin", path: "/usr/bin:/bin") == [
+                "PATH": "/tc/usr/bin:/usr/bin:/bin"
+            ]
+        )
+    }
+
+    @Test func `a gate builds only what its host can build, and keeps the products between runs`() throws {
+        let fixture = try Fixture()
+        try fixture.member("Mac", fixture.manifest(requiring: []))
+        try fixture.member("Any", fixture.manifest(requiring: []))
+        let macOnly = fixture.root.appendingPathComponent("Mac")
+        try FileManager.default.createDirectory(
+            at: macOnly.appendingPathComponent(".ci"),
+            withIntermediateDirectories: true
+        )
+        try #"{"project": {"linux": false}}"#
+            .write(
+                to: macOnly.appendingPathComponent(".ci/action.json"),
+                atomically: true,
+                encoding: .utf8
+            )
+        let family = try Family.load(root: fixture.root)
+        let cache = fixture.root.appendingPathComponent(".family-repin-cache")
+        let mac = try #require(family.member("Mac"))
+        let any = try #require(family.member("Any"))
+
+        #expect(
+            FamilyRepin.buildCommand(for: mac, in: macOnly, scratch: cache, onLinux: true) == nil,
+            "Linux cannot build it"
+        )
+        #expect(
+            FamilyRepin.buildCommand(for: mac, in: macOnly, scratch: cache, onLinux: false)
+                == ["swift", "build", "--scratch-path", cache.appendingPathComponent("Mac").path]
+        )
+        #expect(
+            FamilyRepin.buildCommand(
+                for: any,
+                in: fixture.root.appendingPathComponent("Any"),
+                scratch: cache,
+                onLinux: true
+            )
+                == ["swift", "build", "--scratch-path", cache.appendingPathComponent("Any").path]
+        )
+        #expect(
+            FamilyRepin.buildCommand(
+                for: any,
+                in: fixture.root.appendingPathComponent("Any"),
+                scratch: nil,
+                onLinux: true
+            )
+                == ["swift", "build"],
+            "no cache asked for"
+        )
+    }
+
+    @Test func `a repository with no origin is left out of the family, not an error`() throws {
+        let fixture = try Fixture()
+        try fixture.member("X", fixture.manifest(requiring: []))
+        let local = fixture.root.appendingPathComponent("Local")
+        try FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+        _ = try fixture.git(["init", "-q", "-b", "main"], in: local)
+        try "// swift-tools-version: 6.0\n"
+            .write(to: local.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        let family = try Family.load(root: fixture.root)
+        #expect(family.members.map(\.name) == ["X"])
+    }
+
     @Test func theGraphIsReadInLevelsAndAChangeForcesItsDependentsInOrder() throws {
         let (fixture, _, _) = try family()
         let family = try Family.load(root: fixture.root)

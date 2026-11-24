@@ -62,9 +62,17 @@ public struct ToolLock: Codable, Sendable, Equatable {
                 .macOSArm64
             #elseif os(Linux) && arch(x86_64)
                 .linuxX86_64
+            #elseif os(Linux) && arch(arm64)
+                linuxArm64Fallback(rosetta: FileManager.default.fileExists(atPath: "/proc/sys/fs/binfmt_misc/rosetta"))
             #else
                 nil
             #endif
+        }
+
+        /// What an arm64 Linux machine uses: no archive is published for it, but one that runs x86_64 programs through Rosetta
+        /// (the owner's development VM) runs the Linux x86_64 ones.
+        public static func linuxArm64Fallback(rosetta: Bool) -> Platform? {
+            rosetta ? .linuxX86_64 : nil
         }
     }
 

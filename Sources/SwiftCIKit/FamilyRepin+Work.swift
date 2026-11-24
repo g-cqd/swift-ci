@@ -65,7 +65,11 @@ extension FamilyRepin {
             let directory = tree.appendingPathComponent(manifest).deletingLastPathComponent()
             guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("Package.resolved").path)
             else { continue }
-            try Shell.run(["swift", "package", "resolve"], directory: directory)
+            try Shell.run(
+                ["swift", "package", "resolve"],
+                environment: Self.toolchainEnvironment(),
+                directory: directory
+            )
         }
     }
 
@@ -123,14 +127,63 @@ extension FamilyRepin {
         try Shell.run(["git", "push", "-q", "origin", "HEAD:main"], directory: family.root)
     }
 
-    /// A member's gate: it builds, then its swift-ci quality runs, as its CI runs it.
+    /// A member's gate: it builds where this host can build it, then its swift-ci quality runs, as its CI runs it. A member whose
+    /// configuration says `project.linux: false` is not built on Linux (its macOS CI builds it); its build products are kept
+    /// between runs, in `.family-repin-cache` beside the worktrees, so a repin recompiles what its new pins changed and not
+    /// the whole member again (`SWIFT_CI_FAMILY_CACHE=off` builds in the worktree, as before).
     public static func defaultGate(_ tree: URL, _ member: Family.Member, _ environment: [String: String]) throws {
-        try Shell.run(["swift", "build"], environment: environment, directory: tree)
+        let environment = environment.merging(toolchainEnvironment()) { _, toolchain in toolchain }
+        if let build = buildCommand(for: member, in: tree, scratch: cacheDirectory(of: tree)) {
+            try Shell.run(build, environment: environment, directory: tree)
+        }
         if member.package == "swift-ci" {
             try Shell.run(["swift", "run", "swift-ci", "run", "quality"], environment: environment, directory: tree)
         } else if FileManager.default.isExecutableFile(atPath: tree.appendingPathComponent(".ci/swift-ci").path) {
             try Shell.run([".ci/swift-ci", "run", "quality"], environment: environment, directory: tree)
         }
+    }
+
+    /// The environment that makes one installed toolchain serve every member: `SWIFT_CI_FAMILY_TOOLCHAIN_BIN` (the `usr/bin` of
+    /// a toolchain, such as swiftly's `~/.local/share/swiftly/toolchains/6.4.3/usr/bin`) first on the PATH. Without it the
+    /// `swift` found is used, and each member's `.swift-version` asks swiftly for its own toolchain, which a host that has
+    /// one installed lacks.
+    public static func toolchainEnvironment(
+        bin: String? = ProcessInfo.processInfo.environment["SWIFT_CI_FAMILY_TOOLCHAIN_BIN"],
+        path: String = ProcessInfo.processInfo.environment["PATH"] ?? ""
+    ) -> [String: String] {
+        guard let bin, !bin.isEmpty else { return [:] }
+        return ["PATH": path.isEmpty ? bin : bin + ":" + path]
+    }
+
+    /// Where the build products of members are kept between runs: beside `.family-repin`; nil when turned off.
+    static func cacheDirectory(of tree: URL) -> URL? {
+        if ProcessInfo.processInfo.environment["SWIFT_CI_FAMILY_CACHE"] == "off" { return nil }
+        return tree.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".family-repin-cache")
+    }
+
+    /// The build a gate runs for `member` in `tree`, or nil when this host cannot build it: `swift build`, its products in
+    /// `scratch/<member>` when there is a scratch directory.
+    public static func buildCommand(
+        for member: Family.Member,
+        in tree: URL,
+        scratch: URL?,
+        onLinux: Bool = FamilyRepin.hostIsLinux
+    ) -> [String]? {
+        if onLinux, let configuration = try? Configuration.load(root: tree), configuration.project.linux == false {
+            return nil
+        }
+        var command = ["swift", "build"]
+        if let scratch { command += ["--scratch-path", scratch.appendingPathComponent(member.name).path] }
+        return command
+    }
+
+    public static var hostIsLinux: Bool {
+        #if os(Linux)
+            true
+        #else
+            false
+        #endif
     }
 
     /// Removes what runs without `push` left: each member's worktree under `.family-repin` and its `family-repin` branch;

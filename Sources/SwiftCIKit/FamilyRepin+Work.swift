@@ -136,10 +136,27 @@ extension FamilyRepin {
         if let build = buildCommand(for: member, in: tree, scratch: cacheDirectory(of: tree)) {
             try Shell.run(build, environment: environment, directory: tree)
         }
+        guard environment[qualityVariable] != "0" else { return }
         if member.package == "swift-ci" {
             try Shell.run(["swift", "run", "swift-ci", "run", "quality"], environment: environment, directory: tree)
         } else if FileManager.default.isExecutableFile(atPath: tree.appendingPathComponent(".ci/swift-ci").path) {
             try Shell.run([".ci/swift-ci", "run", "quality"], environment: environment, directory: tree)
+        }
+    }
+
+    /// What the gate is told about quality: "0" when it is not to run.
+    static let qualityVariable = "SWIFT_CI_FAMILY_RUNS_QUALITY"
+
+    /// Whether the gate runs quality, by `SWIFT_CI_FAMILY_QUALITY` (`always`, `off`, or by default `when-swift-ci-moves`): a repin
+    /// leaves sources as they are, so the step can differ only when the tools do.
+    public static func runsQuality(
+        policy: String? = ProcessInfo.processInfo.environment["SWIFT_CI_FAMILY_QUALITY"],
+        swiftCIMoved: Bool
+    ) -> Bool {
+        switch policy {
+            case "always": true
+            case "off": false
+            default: swiftCIMoved
         }
     }
 

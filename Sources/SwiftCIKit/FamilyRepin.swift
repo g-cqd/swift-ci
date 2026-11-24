@@ -87,6 +87,7 @@ public struct FamilyRepin {
         let mirrors = try writeMirrors(in: tree, member: member)
         try resolveLocks(tree, member: member)
         var environment: [String: String] = [:]
+        environment[Self.qualityVariable] = Self.runsQuality(swiftCIMoved: moved["swift-ci"] != nil) ? "1" : "0"
         if revisions["swift-ci"] != nil, let swiftCI = family.member("swift-ci") {
             environment["SWIFT_CI_SOURCE"] = try sourceTree(of: swiftCI, at: revisions["swift-ci"] ?? "").path
         }

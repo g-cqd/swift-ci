@@ -88,6 +88,16 @@ struct FamilyRepinTests {
     /// products kept between runs, where a worktree is deleted after each push.
     /// A host with one toolchain installed (the VM's swiftly has 6.4.3, the members pin 6.4.0 and others) builds every member with it:
     /// that toolchain's `bin` goes first on the PATH, which swiftly's proxy and its `.swift-version` then never see.
+    /// A repin changes pins and workflows, never a member's sources: the quality step over them can differ only when the tools do, that
+    /// is when swift-ci's own pin moves. The gate runs it then, always when asked, never when told not to.
+    @Test func `the gate runs quality when the tools move, or when asked, and not otherwise`() {
+        #expect(FamilyRepin.runsQuality(policy: nil, swiftCIMoved: true))
+        #expect(!FamilyRepin.runsQuality(policy: nil, swiftCIMoved: false))
+        #expect(FamilyRepin.runsQuality(policy: "when-swift-ci-moves", swiftCIMoved: true))
+        #expect(FamilyRepin.runsQuality(policy: "always", swiftCIMoved: false))
+        #expect(!FamilyRepin.runsQuality(policy: "off", swiftCIMoved: true))
+    }
+
     @Test func `one installed toolchain can serve every member, whatever its swift-version file says`() {
         #expect(FamilyRepin.toolchainEnvironment(bin: nil, path: "/usr/bin") == [:])
         #expect(FamilyRepin.toolchainEnvironment(bin: "", path: "/usr/bin") == [:])

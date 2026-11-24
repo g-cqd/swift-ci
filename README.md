@@ -205,6 +205,20 @@ local clones (through a mirrors file the run removes, so a commit not pushed yet
 each repository; with it, each is pushed to `origin/main`, a clean checkout on `main` is fast-forwarded (one with work of its own is
 left as it is), and the umbrella's submodules follow. `--push` refuses a revision its origin lacks.
 
+From a machine that is not the Mac (the owner's development VM, arm64 Linux), the same command works with these switches:
+
+- The gate builds only what its host can build: a member whose `.ci/action.json` says `"project": {"linux": false}` is not built on Linux (its macOS CI builds it).
+  The products of the others are kept between runs in `.family-repin-cache/<member>` beside the worktrees, so a repin recompiles what its new pins
+  changed (`SWIFT_CI_FAMILY_CACHE=off` builds in the worktree, as before). On the VM, a repin of two stale members took 77 s with the cache, 276 s without
+  (single runs).
+- `SWIFT_CI_FAMILY_TOOLCHAIN_BIN=<a toolchain's usr/bin>` puts one installed toolchain first on the PATH for every member, whatever its `.swift-version`
+  asks swiftly for.
+- `SWIFT_CI_FAMILY_QUALITY=always|off|when-swift-ci-moves` (the default): a repin leaves sources as they are, so the quality step can differ only when the tools
+  do, that is when swift-ci's own pin moves.
+- A Package.resolved that names a revision no clone has (a rewritten history) is resolved again from its manifest.
+- An arm64 Linux machine with Rosetta registered takes the Linux x86_64 tool archives (SwiftLint also needs x86_64 SourceKit, which an arm64 toolchain lacks:
+  with Rosetta, `SWIFT_CI_FAMILY_QUALITY=off`, and the members' own CI runs quality).
+
 ## Design
 
 - The workflow only wires; the CLI decides (`SwiftCIKit`, tested: configuration, detection, planning, steps, the tool

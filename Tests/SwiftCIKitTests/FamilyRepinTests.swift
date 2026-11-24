@@ -90,6 +90,29 @@ struct FamilyRepinTests {
     /// that toolchain's `bin` goes first on the PATH, which swiftly's proxy and its `.swift-version` then never see.
     /// A repin changes pins and workflows, never a member's sources: the quality step over them can differ only when the tools do, that
     /// is when swift-ci's own pin moves. The gate runs it then, always when asked, never when told not to.
+    /// A lock may name a revision no clone has any more (a history that was rewritten: ask's Fuzz and Conformance packages, 2026-11-24).
+    /// The repin then resolves that package from its manifest again, instead of stopping on it.
+    @Test func `a lock naming a revision nothing has is resolved again from its manifest`() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("lock-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let lock = directory.appendingPathComponent("Package.resolved")
+        try "stale".write(to: lock, atomically: true, encoding: .utf8)
+        var calls: [Bool] = []
+        try FamilyRepin.resolve(in: directory) { _ in
+            calls.append(FileManager.default.fileExists(atPath: lock.path))
+            if calls.count == 1 { throw SwiftCIError("unable to read tree") }
+        }
+        #expect(calls == [true, false], "the second try has no lock to honour")
+        // One that resolves is left as it is; one that fails with no lock to blame fails.
+        calls = []
+        try "kept".write(to: lock, atomically: true, encoding: .utf8)
+        try FamilyRepin.resolve(in: directory) { _ in calls.append(true) }
+        #expect(calls == [true] && FileManager.default.fileExists(atPath: lock.path))
+        try? FileManager.default.removeItem(at: lock)
+        #expect(throws: SwiftCIError.self) { try FamilyRepin.resolve(in: directory) { _ in throw SwiftCIError("no") } }
+    }
+
     @Test func `the gate runs quality when the tools move, or when asked, and not otherwise`() {
         #expect(FamilyRepin.runsQuality(policy: nil, swiftCIMoved: true))
         #expect(!FamilyRepin.runsQuality(policy: nil, swiftCIMoved: false))

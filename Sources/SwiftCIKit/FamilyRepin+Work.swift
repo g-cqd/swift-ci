@@ -65,11 +65,22 @@ extension FamilyRepin {
             let directory = tree.appendingPathComponent(manifest).deletingLastPathComponent()
             guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("Package.resolved").path)
             else { continue }
-            try Shell.run(
-                ["swift", "package", "resolve"],
-                environment: Self.toolchainEnvironment(),
-                directory: directory
-            )
+            try Self.resolve(in: directory) {
+                try Shell.run(["swift", "package", "resolve"], environment: Self.toolchainEnvironment(), directory: $0)
+            }
+        }
+    }
+
+    /// Resolves the package in `directory` with `run`. A lock that names a revision no clone has (a history rewritten since) makes
+    /// the resolve fail: the lock is taken away and the package resolved from its manifest again, whose pins are by revision.
+    public static func resolve(in directory: URL, run: (URL) throws -> Void) throws {
+        let lock = directory.appendingPathComponent("Package.resolved")
+        do {
+            try run(directory)
+        } catch {
+            guard FileManager.default.fileExists(atPath: lock.path) else { throw error }
+            try FileManager.default.removeItem(at: lock)
+            try run(directory)
         }
     }
 

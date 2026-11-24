@@ -54,9 +54,22 @@ public struct Family: Sendable {
                 pins += FamilyManifest.pins(in: text)
                 if manifest == "Package.swift" { siblings += FamilyManifest.siblings(in: text) }
             }
+            // The swift-ci commit a workflow uses is a pin too: a repin that brings the family up to date brings its tools up.
+            for file in listed.split(separator: "\n").map(String.init) where isWorkflow(file) {
+                let text = try Shell.output(["git", "show", "origin/main:\(file)"], directory: path, quiet: true)
+                pins += FamilyManifest.swiftCIRevisions(in: text)
+                    .map {
+                        FamilyManifest.Pin(owner: "g-cqd", repository: "swift-ci", revision: $0)
+                    }
+            }
             members.append(Member(name: name, path: path, manifests: manifests, pins: pins, siblings: siblings))
         }
         return Family(root: root, members: members)
+    }
+
+    /// A workflow a repin rewrites: a YAML file directly under `.github/workflows`.
+    static func isWorkflow(_ path: String) -> Bool {
+        path.hasPrefix(".github/workflows/") && (path.hasSuffix(".yml") || path.hasSuffix(".yaml"))
     }
 
     /// A manifest a repin rewrites: `Package.swift` anywhere but in tests and fixtures.

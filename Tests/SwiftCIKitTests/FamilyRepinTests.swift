@@ -92,6 +92,31 @@ struct FamilyRepinTests {
     /// is when swift-ci's own pin moves. The gate runs it then, always when asked, never when told not to.
     /// A lock may name a revision no clone has any more (a history that was rewritten: ask's Fuzz and Conformance packages, 2026-11-24).
     /// The repin then resolves that package from its manifest again, instead of stopping on it.
+    /// A member pins swift-ci in its workflows, not in a manifest: the commit there is a pin like the others, so that a repin that
+    /// brings the family up to date brings its tools up too (2026-11-24: nine members used nine different swift-ci commits).
+    @Test func `the swift-ci commit a workflow uses is one of the member's pins`() throws {
+        let fixture = try Fixture()
+        try fixture.member("Tool", fixture.manifest(requiring: []))
+        let member = fixture.root.appendingPathComponent("Lib")
+        let revision = String(repeating: "ab", count: 20)
+        try fixture.member("Lib", fixture.manifest(requiring: []))
+        let workflows = member.appendingPathComponent(".github/workflows")
+        try FileManager.default.createDirectory(at: workflows, withIntermediateDirectories: true)
+        try "jobs:\n  ci:\n    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@\(revision) # swift-ci abababa\n"
+            .write(
+                to: workflows.appendingPathComponent("ci.yml"),
+                atomically: true,
+                encoding: .utf8
+            )
+        _ = try fixture.git(["add", "-A"], in: member)
+        _ = try fixture.git(["commit", "-q", "-m", "workflow"], in: member)
+        _ = try fixture.git(["push", "-q", "origin", "main"], in: member)
+        let family = try Family.load(root: fixture.root)
+        let lib = try #require(family.member("Lib"))
+        #expect(lib.pins.contains { $0.package == "swift-ci" && $0.revision == revision })
+        #expect(lib.requires.contains("swift-ci"))
+    }
+
     @Test func `a lock naming a revision nothing has is resolved again from its manifest`() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("lock-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

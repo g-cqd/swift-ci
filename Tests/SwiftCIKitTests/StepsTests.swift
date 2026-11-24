@@ -419,10 +419,25 @@ struct CommandLineHelpTests {
 struct LocalToolLockTests {
     @Test func `litmus is pinned for local mutation testing on macOS only`() throws {
         let litmus = try ToolLock.builtIn.tool(named: "litmus")
-        #expect(litmus.version == "0.3.2")
+        #expect(litmus.version == "0.4.1")
         #expect(litmus.archives.keys.sorted() == [ToolLock.Platform.macOSArm64.rawValue])
-        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.3.2-macos-arm64/litmus")
+        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.4.1-macos-arm64/litmus")
         #expect(litmus.arguments == nil)
+    }
+
+    /// The hashes of the published archives, as GitHub lists them: a wrong one fails every run that installs the tool.
+    @Test func `the tools updated on 2026-11-24 carry the hashes of their archives`() throws {
+        let litmus = try ToolLock.builtIn.tool(named: "litmus")
+        #expect(
+            litmus.archives[ToolLock.Platform.macOSArm64.rawValue]?.sha256
+                == "37d3e18579d417de433f214c529bda6497d7541d775b3106aaa41888521caa0f"
+        )
+        let format = try ToolLock.builtIn.tool(named: "swiftformat")
+        #expect(format.version == "0.64.7")
+        #expect(
+            format.archives[ToolLock.Platform.macOSArm64.rawValue]?.sha256
+                == "e82e224325cbd3403fc7b68caf6c917926dc106de3af875fca4b87e3c4634038"
+        )
     }
 }
 

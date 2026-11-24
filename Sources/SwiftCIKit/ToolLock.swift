@@ -117,7 +117,7 @@ public struct ToolLock: Codable, Sendable, Equatable {
     }
 
     // swift-format comes with the toolchain (`swift format`), so it is not locked. The hashes below are those of the
-    // published archives, computed on 2026-11-02 (the g-cqd ones are aemi's Scripts/analyzers.lock).
+    // published archives, computed on 2026-11-02, litmus and SwiftFormat on 2026-11-24 (the g-cqd ones are aemi's Scripts/analyzers.lock).
     public static let builtIn: ToolLock = {
         func gcqd(_ name: String, _ version: String, mac: String, linux: String, command: String = "analyze") -> Tool {
             let base = "https://github.com/g-cqd/\(name)/releases/download/v{version}/\(name)-{version}"
@@ -186,12 +186,12 @@ public struct ToolLock: Codable, Sendable, Equatable {
             // Local-only (mutation testing on this machine); macOS arm64 is the only published archive.
             Tool(
                 name: "litmus",
-                version: "0.3.2",
+                version: "0.4.1",
                 archives: [
                     Platform.macOSArm64.rawValue: .init(
                         url:
                             "https://github.com/g-cqd/litmus/releases/download/v{version}/litmus-{version}-macos-arm64.tar.gz",
-                        sha256: "9651dd09f8b22dc93f2b03e3befe8e4a49c0fff583c28f134c713070223916c5"
+                        sha256: "37d3e18579d417de433f214c529bda6497d7541d775b3106aaa41888521caa0f"
                     )
                 ],
                 binary: "litmus-{version}-{platform}/litmus",
@@ -212,13 +212,13 @@ public struct ToolLock: Codable, Sendable, Equatable {
             ),
             upstream(
                 "swiftformat",
-                "0.64.5",
+                "0.64.7",
                 "https://github.com/nicklockwood/SwiftFormat/releases/download/{version}/",
                 mac: (
-                    "swiftformat.zip", "ec017c91fdd46233e5a22dc43ff9564a3cc4b37023d3b4681b6c7d7b781de113", "swiftformat"
+                    "swiftformat.zip", "e82e224325cbd3403fc7b68caf6c917926dc106de3af875fca4b87e3c4634038", "swiftformat"
                 ),
                 linux: (
-                    "swiftformat_linux.zip", "56c50d955903cfedbe28996a70e7551a873cdb6dfa5e416d9332925c455ab365",
+                    "swiftformat_linux.zip", "819aea026e1c630f46b234ed84481e56d9eb3cfe7024cd51b1af55169c8e13bb",
                     "swiftformat_linux"
                 )
             )

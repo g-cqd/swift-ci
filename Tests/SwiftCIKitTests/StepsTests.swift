@@ -428,9 +428,9 @@ struct LinuxArm64PlatformTests {
 struct LocalToolLockTests {
     @Test func `litmus is pinned for local mutation testing on macOS only`() throws {
         let litmus = try ToolLock.builtIn.tool(named: "litmus")
-        #expect(litmus.version == "0.4.8")
+        #expect(litmus.version == "0.4.10")
         #expect(litmus.archives.keys.sorted() == [ToolLock.Platform.macOSArm64.rawValue])
-        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.4.8-macos-arm64/litmus")
+        #expect(litmus.binaryPath(for: .macOSArm64) == "litmus-0.4.10-macos-arm64/litmus")
         #expect(litmus.arguments == nil)
     }
 
@@ -439,7 +439,7 @@ struct LocalToolLockTests {
         let litmus = try ToolLock.builtIn.tool(named: "litmus")
         #expect(
             litmus.archives[ToolLock.Platform.macOSArm64.rawValue]?.sha256
-                == "994ba59abfc957e0a7910ebe684b4b602352064a7f283545ee02dccde6cc0a93"
+                == "2a8842642419276a00ef1c086b11f9f9443cf47855a1790ac30d6a29bfd1e83a"
         )
         let format = try ToolLock.builtIn.tool(named: "swiftformat")
         #expect(format.version == "0.64.7")

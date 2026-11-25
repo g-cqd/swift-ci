@@ -47,10 +47,16 @@ struct PlannerTests {
         #expect(plan.linux[1].cache == "swift-ci-linux-linux-debug-6.4.1")
     }
 
-    @Test func `the nightly run takes the heavy checks, and nothing without a new commit`() throws {
+    @Test
+    func `the nightly run skips duplicate macOS heavy checks on Linux projects and keeps them on macOS-only ones`()
+        throws
+    {
         let nightly = try plan(.nightly, files: nil, hours: 3)
         #expect(ids(nightly.linux) == [CheckID.linuxThread])
-        #expect(ids(nightly.macOS) == [CheckID.macOSRelease, CheckID.macOSAddress, CheckID.macOSThread])
+        #expect(nightly.macOS.isEmpty)
+        let macOnly = Project(kind: .package, xcode: nil, linux: false, formatters: [], corpus: ["."])
+        let macNightly = try plan("{}", project: macOnly, .nightly, files: nil, hours: 3)
+        #expect(ids(macNightly.macOS) == [CheckID.macOSRelease, CheckID.macOSAddress, CheckID.macOSThread])
         let idle = try plan(.nightly, files: nil, hours: 30)
         #expect(idle.linux.isEmpty && idle.macOS.isEmpty)
         #expect(idle.skipped?.contains("no recent commit for the scheduled") == true)
@@ -63,8 +69,7 @@ struct PlannerTests {
         #expect(ids(tag.linux).contains(CheckID.archiveLinux))
         #expect(
             ids(tag.macOS) == [
-                CheckID.macOSDebug, CheckID.macOSRelease, CheckID.macOSAddress, CheckID.macOSThread, CheckID.platforms,
-                CheckID.documentation, CheckID.archiveMacOS
+                CheckID.macOSDebug, CheckID.platforms, CheckID.documentation, CheckID.archiveMacOS
             ]
         )
         #expect(tag.publish)

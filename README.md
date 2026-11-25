@@ -93,7 +93,8 @@ Paths inside the configuration are relative to the package's directory: the repo
 | `linux-debug`, `linux-release`, `linux-address` | Linux | every change |
 | `consumer`: build and test without `swift.environment` (only when it is set) | Linux | every change |
 | `macos-debug` (with coverage) | macOS | every change |
-| `linux-thread`, `macos-release`, `macos-address`, `macos-thread` | | nightly, tag, manual |
+| `linux-thread` | | nightly, tag, manual |
+| `macos-release`, `macos-address`, `macos-thread` | when `project.linux` is `false` (else opt-in via `checks`) | nightly, tag, manual |
 | `platforms`: every `platforms` entry, on one runner | macOS | nightly, tag, manual |
 | `documentation` | macOS | nightly, tag, manual |
 | `archive-linux`, `archive-macos`, then the release | both | tag (archives also manual) |

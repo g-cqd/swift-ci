@@ -147,8 +147,20 @@ public struct Planner: Sendable {
     }
 
     /// The cadence of `check` after the configuration's override.
+    ///
+    /// When the project already runs on Linux, `macos-release`, `macos-address` and `macos-thread` duplicate the
+    /// Linux release, ASan and TSan checks on scarce macOS runners, so their default cadence is empty unless a
+    /// configuration explicitly opts them in via `checks`. Projects with `project.linux == false` keep `Trigger.heavy`.
     func cadence(of check: Check) -> Set<Trigger> {
-        configuration.checks[check.id].map(Set.init) ?? check.cadence
+        if let override = configuration.checks[check.id] {
+            return Set(override)
+        }
+        if project.linux,
+            check.id == CheckID.macOSRelease || check.id == CheckID.macOSAddress || check.id == CheckID.macOSThread
+        {
+            return []
+        }
+        return check.cadence
     }
 
     /// The plan for `event`.

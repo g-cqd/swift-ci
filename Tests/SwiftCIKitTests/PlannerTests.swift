@@ -67,9 +67,10 @@ struct PlannerTests {
             #"{"release": {"executables": ["tool"]}, "platforms": [{"name": "iOS"}], "documentation": {"targets": ["Tool"]}}"#
         let tag = try plan(json, .tag, ref: "refs/tags/v1.0.0", files: nil)
         #expect(ids(tag.linux).contains(CheckID.archiveLinux))
+        #expect(ids(tag.linux).contains(CheckID.documentation))
         #expect(
             ids(tag.macOS) == [
-                CheckID.macOSDebug, CheckID.platforms, CheckID.documentation, CheckID.archiveMacOS
+                CheckID.macOSDebug, CheckID.platforms, CheckID.archiveMacOS
             ]
         )
         #expect(tag.publish)

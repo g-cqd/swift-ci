@@ -195,7 +195,16 @@ public struct Planner: Sendable {
             $0.after == nil && $0.before.isEmpty && $0.cadence.contains(event.trigger)
                 && Self.touches(changed, $0.paths)
         }
-        for (id, os) in checks.map({ ($0.id, $0.os) }) + commands.map({ ($0.id, $0.os) }) {
+        let checkEntries: [(String, OS)] = checks.map { check in
+            let os: OS =
+                if check.id == CheckID.documentation, project.linux, !project.isXcode {
+                    .linux
+                } else {
+                    check.os
+                }
+            return (check.id, os)
+        }
+        for (id, os) in checkEntries + commands.map({ ($0.id, $0.os) }) {
             let planned = jobs(for: id, os: os)
             if os == .linux { plan.linux += planned } else { plan.macOS += planned }
         }

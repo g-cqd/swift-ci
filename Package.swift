@@ -1,7 +1,6 @@
 // swift-tools-version:6.2
 import PackageDescription
 
-// No dependencies: the CLI builds in seconds on any runner, before anything else of the project is known.
 let settings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .enableUpcomingFeature("ExistentialAny"),

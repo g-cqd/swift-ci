@@ -364,3 +364,10 @@ jobs:
     uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@<commit>
     with: { package-path: Packages/AtelierCore }
 ```
+
+## Contributing & Security
+
+- [Adoption Guide](.ci/ADOPTION.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [License](LICENSE)

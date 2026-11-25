@@ -115,7 +115,9 @@ jobs:
     # An advisory toolchain's leg reports its failure without failing the job, the release or the gate.
     continue-on-error: ${{ matrix.advisory }}
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
+    container:
+      image: ${{ matrix.container }}
+      options: --security-opt seccomp=unconfined
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
       fail-fast: false

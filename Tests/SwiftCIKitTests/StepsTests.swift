@@ -53,7 +53,7 @@ struct StepsTests {
             try steps(CheckID.linuxThread) == [
                 "write .build/swift-ci/tsan-suppressions.txt",
                 "TSAN_OPTIONS=suppressions=.build/swift-ci/tsan-suppressions.txt swift build --build-tests --sanitize=thread",
-                "TSAN_OPTIONS=suppressions=.build/swift-ci/tsan-suppressions.txt swift test --skip-build --sanitize=thread"
+                "TSAN_OPTIONS=suppressions=.build/swift-ci/tsan-suppressions.txt setarch -R swift test --skip-build --sanitize=thread"
             ]
         )
         #expect(raceSuppressions.contains("race:AemiKernel14ByteBufferPool\n"))

@@ -212,7 +212,8 @@ public struct StepPlanner: Sendable {
                 return [.file(path: Paths.raceSuppressions, contents: raceSuppressions)]
                     + package(
                         .sanitizer("thread"),
-                        extraEnvironment: ["TSAN_OPTIONS": "suppressions=\(absolute(Paths.raceSuppressions))"]
+                        extraEnvironment: ["TSAN_OPTIONS": "suppressions=\(absolute(Paths.raceSuppressions))"],
+                        disableASLR: true
                     )
             case CheckID.consumer: return package(.debug, environment: [:])
             case CheckID.macOSDebug: return project.isXcode ? try xcode(.debug) : package(.debug, coverage: true)
@@ -243,7 +244,8 @@ public struct StepPlanner: Sendable {
         coverage: Bool = false,
         environment: [String: String]? = nil,
         extraEnvironment: [String: String] = [:],
-        path: String? = nil
+        path: String? = nil,
+        disableASLR: Bool = false
     ) -> [Step] {
         let environment = (environment ?? configuration.swift.environment).merging(extraEnvironment) { $1 }
         var build = ["swift", "build", "--build-tests"]
@@ -279,6 +281,11 @@ public struct StepPlanner: Sendable {
             test += ["--enable-code-coverage"]
         }
         if !configuration.swift.parallel { test += ["--no-parallel"] }
+        if disableASLR {
+            // Ubuntu 24.04/26.04 runners use high-entropy ASLR (vm.mmap_rnd_bits=32), which breaks TSan shadow
+            // mapping unless ADDR_NO_RANDOMIZE is set (permitted by `--security-opt seccomp=unconfined` in CI).
+            test = ["setarch", "-R"] + test
+        }
         let place = path.map { " (\($0))" } ?? ""
         return [
             .run(ShellCommand("Build the tests, \(label)\(place)", build, environment: environment)),

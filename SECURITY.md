@@ -11,6 +11,19 @@
 
 Report security issues privately via [GitHub Security Advisories](https://github.com/g-cqd/swift-ci/security/advisories/new).
 
+## Response targets (SLAs)
+
+| Milestone | Target |
+| --- | --- |
+| Private acknowledgement | Within **3 working days** |
+| Initial triage & severity confirmation | Within **7 calendar days** |
+| Fix & advisory — **Critical** | Within **7 calendar days** |
+| Fix & advisory — **High** | Within **30 calendar days** |
+| Fix — **Medium / Low** | Next scheduled release |
+
+Security fixes in released versions are published with a GitHub Security Advisory (and CVE identifier where applicable)
+and named in the release notes.
+
 ## Release Verification & Supply-Chain Integrity
 
 All commits and release tags are signed with GPG key `9FE7C7E8522EE497` (fingerprint: `1BF1 901A 8C67 2E9B C12E 1B31 9FE7 C7E8 522E E497`).

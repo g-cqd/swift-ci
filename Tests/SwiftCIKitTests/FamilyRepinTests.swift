@@ -332,7 +332,7 @@ struct FamilyRepinTests {
         try "gitdir: ../.git/modules/X\n".write(to: x.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
         _ = try fixture.git(["config", "core.worktree", x.path], in: moved)
         let location = FamilyRepin.mirrorLocation(of: x)
-        #expect(URL(fileURLWithPath: location).resolvingSymlinksInPath() == moved.resolvingSymlinksInPath())
+        #expect(URL(fileURLWithPath: location).resolvingSymlinksInPath().path == moved.resolvingSymlinksInPath().path)
         #expect(try fixture.git(["-C", location, "rev-parse", "--git-dir"], in: fixture.root) == ".")
         // And the mirrors file a repin writes for a member says so.
         let family = try Family.load(root: fixture.root)

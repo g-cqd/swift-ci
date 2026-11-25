@@ -5,6 +5,16 @@ import Testing
 
 @Suite("CycloneDX SBOM generation")
 struct SBOMTests {
+    private struct DecodedSBOM: Decodable {
+        struct Component: Decodable {
+            let name: String
+            let purl: String
+        }
+        let bomFormat: String
+        let specVersion: String
+        let components: [Component]
+    }
+
     @Test func generatesCycloneDX15FromPackageResolved() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swift-ci-sbom-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -38,19 +48,16 @@ struct SBOMTests {
         try resolved.write(to: resolvedURL, atomically: true, encoding: .utf8)
 
         let data = try SBOM.generate(name: "ask", version: "0.1.0-alpha.1", packageResolved: resolvedURL)
-        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        #expect(json["bomFormat"] as? String == "CycloneDX")
-        #expect(json["specVersion"] as? String == "1.5")
-
-        let components = try #require(json["components"] as? [[String: Any]])
-        #expect(components.count == 2)
-        #expect(components[0]["name"] as? String == "aemijson")
+        let decoded = try JSONDecoder().decode(DecodedSBOM.self, from: data)
+        #expect(decoded.bomFormat == "CycloneDX")
+        #expect(decoded.specVersion == "1.5")
+        #expect(decoded.components.count == 2)
+        #expect(decoded.components[0].name == "aemijson")
         #expect(
-            components[0]["purl"] as? String
-                == "pkg:swift/github.com/g-cqd/AemiJSON@fdcf306b1ffbbd29161df787ae2ea97e56718d2c"
+            decoded.components[0].purl == "pkg:swift/github.com/g-cqd/AemiJSON@fdcf306b1ffbbd29161df787ae2ea97e56718d2c"
         )
-        #expect(components[1]["name"] as? String == "swift-argument-parser")
-        #expect(components[1]["purl"] as? String == "pkg:swift/github.com/apple/swift-argument-parser@1.5.0")
+        #expect(decoded.components[1].name == "swift-argument-parser")
+        #expect(decoded.components[1].purl == "pkg:swift/github.com/apple/swift-argument-parser@1.5.0")
     }
 
     @Test func handlesMissingPackageResolvedGracefully() throws {
@@ -58,8 +65,7 @@ struct SBOMTests {
             "missing-\(UUID().uuidString).resolved"
         )
         let data = try SBOM.generate(name: "tool", version: "1.0.0", packageResolved: missing)
-        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let components = try #require(json["components"] as? [[String: Any]])
-        #expect(components.isEmpty)
+        let decoded = try JSONDecoder().decode(DecodedSBOM.self, from: data)
+        #expect(decoded.components.isEmpty)
     }
 }

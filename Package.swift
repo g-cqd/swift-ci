@@ -3,6 +3,7 @@ import PackageDescription
 
 let settings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
+    .strictMemorySafety(),
     .enableUpcomingFeature("ExistentialAny"),
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),

@@ -404,11 +404,8 @@ struct CommandLineHelpTests {
         for _ in 0 ..< 6 {
             directory.deleteLastPathComponent()
             let candidate = directory.appendingPathComponent("swift-ci")
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
-                !isDirectory.boolValue,
-                FileManager.default.isExecutableFile(atPath: candidate.path)
-            {
+            let isFile = (try? candidate.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            if isFile, FileManager.default.isExecutableFile(atPath: candidate.path) {
                 return candidate
             }
         }

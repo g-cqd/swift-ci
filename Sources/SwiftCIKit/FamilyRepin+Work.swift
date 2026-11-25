@@ -6,9 +6,9 @@ extension FamilyRepin {
     /// repository only where `git rev-parse --git-dir` answers `.git` or `.`, and refuses a submodule's checkout ("cannot
     /// clone from local directory"); the git directory holds the same commits, the ones not pushed yet included.
     public static func mirrorLocation(of path: URL) -> String {
-        var isDirectory: ObjCBool = false
-        let marker = path.appendingPathComponent(".git").path
-        guard FileManager.default.fileExists(atPath: marker, isDirectory: &isDirectory), !isDirectory.boolValue,
+        let marker = path.appendingPathComponent(".git")
+        let isRegularFile = (try? marker.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+        guard isRegularFile,
             let directory = try? Shell.output(["git", "rev-parse", "--absolute-git-dir"], directory: path, quiet: true)
         else { return path.path }
         let trimmed = directory.trimmingCharacters(in: .whitespacesAndNewlines)

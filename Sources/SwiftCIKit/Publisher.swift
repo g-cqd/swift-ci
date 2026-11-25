@@ -43,6 +43,20 @@ public struct Publisher {
             try bundle(executable, archives: archives)
         }
 
+        let sbomVersion = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        let primaryName = release.executables.first ?? root.lastPathComponent
+        let sbomName = "\(primaryName)-\(sbomVersion).sbom.cdx.json"
+        let sbomURL = assets.appendingPathComponent(sbomName)
+        let sbomData = try SBOM.generate(
+            name: primaryName,
+            version: sbomVersion,
+            packageResolved: root.appendingPathComponent("Package.resolved")
+        )
+        try sbomData.write(to: sbomURL, options: .atomic)
+        let sbomDigest = try Shell.sha256(of: sbomURL)
+        try "\(sbomDigest)  \(sbomName)\n"
+            .write(to: assets.appendingPathComponent(sbomName + ".sha256"), atomically: true, encoding: .utf8)
+
         let notePath = release.notes.replacingOccurrences(of: "{tag}", with: tag)
         let noteURL = root.appendingPathComponent(notePath)
         guard files.fileExists(atPath: noteURL.path) else {
@@ -62,7 +76,10 @@ public struct Publisher {
         print(filled)
 
         let uploads = try files.contentsOfDirectory(atPath: assets.path).sorted()
-            .filter { $0.hasSuffix(".tar.gz") || $0.hasSuffix(".zip") || $0.hasSuffix(".sha256") }
+            .filter {
+                $0.hasSuffix(".tar.gz") || $0.hasSuffix(".zip") || $0.hasSuffix(".sha256")
+                    || $0.hasSuffix(".sbom.cdx.json")
+            }
             .map { assets.appendingPathComponent($0).path }
         let exists = (try? Shell.output(["gh", "release", "view", tag, "--repo", repository])) != nil
         var create = ["gh", "release", "create", tag, "--repo", repository, "--notes-file", filledURL.path]

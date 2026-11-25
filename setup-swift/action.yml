@@ -1,0 +1,79 @@
+name: Setup Swift (swiftly, composite)
+description: >-
+  Installs a requested Swift toolchain on macOS or Linux via swiftly using a pure composite shell action (zero Node.js
+  runtime dependency — eliminates Node.js 20 deprecation warnings across the g-cqd family).
+author: g-cqd
+
+inputs:
+  swift-version:
+    description: Swift toolchain version to install and activate (e.g. 6.4.2).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Swift ${{ inputs.swift-version }} via swiftly
+      shell: bash
+      env:
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$SWIFT_VERSION" =~ ^[0-9A-Za-z._-]+$ ]]; then
+          echo "::error::invalid swift-version: $SWIFT_VERSION"
+          exit 1
+        fi
+        SWIFTLY_HOME="$RUNNER_TEMP/swiftly/home"
+        SWIFTLY_BIN="$RUNNER_TEMP/swiftly/bin"
+        mkdir -p "$SWIFTLY_HOME" "$SWIFTLY_BIN"
+        export SWIFTLY_HOME_DIR="$SWIFTLY_HOME"
+        export SWIFTLY_BIN_DIR="$SWIFTLY_BIN"
+
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          if ! command -v swiftly > /dev/null 2>&1 && [ ! -x "$HOME/.swiftly/bin/swiftly" ]; then
+            pkg="$RUNNER_TEMP/swiftly.pkg"
+            curl -fsSL --retry 3 --retry-delay 2 "https://download.swift.org/swiftly/darwin/swiftly.pkg" -o "$pkg"
+            installer -pkg "$pkg" -target CurrentUserHomeDirectory
+            rm -f "$pkg"
+          fi
+          if [ -x "$HOME/.swiftly/bin/swiftly" ]; then
+            export PATH="$HOME/.swiftly/bin:$PATH"
+          fi
+        else
+          if ! command -v swiftly > /dev/null 2>&1; then
+            arch="$(uname -m)"
+            tgz="$RUNNER_TEMP/swiftly.tar.gz"
+            curl -fsSL --retry 3 --retry-delay 2 "https://download.swift.org/swiftly/linux/swiftly-${arch}.tar.gz" -o "$tgz"
+            tar -xzf "$tgz" -C "$SWIFTLY_BIN"
+            rm -f "$tgz"
+          fi
+        fi
+
+        export PATH="$SWIFTLY_BIN:$PATH"
+        swiftly init --skip-install --quiet-shell-followup --assume-yes --no-modify-profile
+
+        post_install="$RUNNER_TEMP/swiftly-post-install.sh"
+        rm -f "$post_install"
+        swiftly install --use "$SWIFT_VERSION" --assume-yes --post-install-file "$post_install"
+        if [ -f "$post_install" ]; then
+          bash "$post_install"
+        fi
+
+        location="$(swiftly use --print-location)"
+        if [ -n "$location" ] && [ ! -d "$location" ]; then
+          echo "::error::swiftly returned non-existent toolchain directory"
+          exit 1
+        fi
+        {
+          printf 'SWIFTLY_HOME_DIR=%s\n' "$SWIFTLY_HOME"
+          printf 'SWIFTLY_BIN_DIR=%s\n' "$SWIFTLY_BIN"
+        } >> "$GITHUB_ENV"
+        {
+          printf '%s\n' "$SWIFTLY_BIN"
+          if [ -n "$location" ]; then
+            printf '%s\n' "$location"
+            if [ -d "$location/usr/bin" ]; then
+              printf '%s/usr/bin\n' "$location"
+            fi
+          fi
+        } >> "$GITHUB_PATH"
+        swift --version

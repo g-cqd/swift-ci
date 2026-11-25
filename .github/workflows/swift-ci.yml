@@ -209,6 +209,13 @@ jobs:
       - name: Setup · Check Out Sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .build/swift-ci-src
+          persist-credentials: false
       - name: Setup · Select Xcode ${{ matrix.xcode }}
         if: ${{ matrix.xcode != '' }}
         env:
@@ -219,7 +226,7 @@ jobs:
           xcodebuild -version
       - name: Setup · Install Swift ${{ matrix.swift }}
         if: ${{ matrix.installSwift }}
-        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        uses: ./.build/swift-ci-src/setup-swift
         with:
           swift-version: ${{ matrix.swift }}
       - name: Cache · Compute Identity
@@ -241,13 +248,6 @@ jobs:
           restore-keys: |
             ${{ steps.key.outputs.prefix }}
             ${{ matrix.cache }}-
-      - name: Setup · Check Out Swift CI
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: .build/swift-ci-src
-          persist-credentials: false
       - name: Signing · Setup Temporary Keychain & Notary Credentials
         if: ${{ matrix.archives && startsWith(github.ref, 'refs/tags/') }}
         env:

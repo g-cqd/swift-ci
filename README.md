@@ -372,3 +372,7 @@ jobs:
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
 - [License](LICENSE)
+## Privacy & Verification
+
+- **Privacy:** `swift-ci` collects zero telemetry and sends no data to maintainer-operated services. See [`PRIVACY.md`](PRIVACY.md).
+- **Security & Signatures:** Commits and release tags are GPG-signed (`1BF1 901A 8C67 2E9B C12E 1B31 9FE7 C7E8 522E E497`). See [`SECURITY.md`](SECURITY.md).

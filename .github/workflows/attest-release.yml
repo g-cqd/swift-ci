@@ -1,0 +1,36 @@
+name: Attest Release Provenance
+
+# Generates SLSA Build Provenance attestations (Sigstore / GitHub Artifact Attestations) for every
+# release archive published by a `v*` tag. Consumers verify downloads with:
+#   gh attestation verify <archive> --owner <owner>
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag whose assets to attest (defaults to github.ref_name).
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  attest:
+    name: Attest · Build Provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Release · Download Published Archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          mkdir -p dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "*.tar.gz" --pattern "*.zip" --dir dist
+          ls -la dist
+      - name: Attest · Build Provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "dist/*"

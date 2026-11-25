@@ -50,15 +50,17 @@ runs:
 
         export PATH="$SWIFTLY_BIN:$PATH"
         swiftly init --skip-install --quiet-shell-followup --assume-yes --no-modify-profile
+        # swiftly init moves the binary into $SWIFTLY_BIN/swiftly, so refresh bash's command hash table
+        hash -r
 
         post_install="$RUNNER_TEMP/swiftly-post-install.sh"
         rm -f "$post_install"
-        swiftly install --use "$SWIFT_VERSION" --assume-yes --post-install-file "$post_install"
+        "$SWIFTLY_BIN/swiftly" install --use "$SWIFT_VERSION" --assume-yes --post-install-file "$post_install"
         if [ -f "$post_install" ]; then
           bash "$post_install"
         fi
 
-        location="$(swiftly use --print-location)"
+        location="$("$SWIFTLY_BIN/swiftly" use --print-location)"
         if [ -n "$location" ] && [ ! -d "$location" ]; then
           echo "::error::swiftly returned non-existent toolchain directory"
           exit 1

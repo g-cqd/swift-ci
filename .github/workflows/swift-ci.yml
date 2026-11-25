@@ -364,43 +364,12 @@ jobs:
           arguments: --assets .build/swift-ci/assets --repository ${{ github.repository }}
           config: ${{ inputs.config }}
           working-directory: ${{ inputs.package-path }}
-      - name: Artifacts · Upload Published Assets for Attestation
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: swift-ci-${{ needs.plan.outputs.scope }}published
-          path: |
-            ${{ inputs.package-path }}/.build/swift-ci/assets/*.tar.gz
-            ${{ inputs.package-path }}/.build/swift-ci/assets/*.zip
-            ${{ inputs.package-path }}/.build/swift-ci/assets/*.sbom.cdx.json
-          if-no-files-found: error
-          retention-days: 7
-
-  attest:
-    name: Attest · Build Provenance
-    needs: [plan, publish]
-    if: ${{ !cancelled() && needs.plan.outputs.publish == 'true' && needs.publish.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    steps:
-      - name: Artifacts · Download Published Assets
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: swift-ci-${{ needs.plan.outputs.scope }}published
-          path: dist
-      - name: Attest · SLSA Build Provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: "dist/*"
 
   gate:
     name: Gate
     # The one check a branch rule requires. Skipped jobs pass (nothing to check, or not a tag); failed or cancelled
     # ones do not. An advisory leg continues on error, so its failure does not reach here.
-    needs: [plan, linux, macos, publish, attest]
+    needs: [plan, linux, macos, publish]
     if: ${{ always() }}
     runs-on: ${{ fromJSON(inputs.plan-runner) }}
     timeout-minutes: 2

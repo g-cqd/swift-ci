@@ -69,13 +69,11 @@ runs:
           printf 'SWIFTLY_HOME_DIR=%s\n' "$SWIFTLY_HOME"
           printf 'SWIFTLY_BIN_DIR=%s\n' "$SWIFTLY_BIN"
         } >> "$GITHUB_ENV"
+        # Put SWIFTLY_BIN on PATH (not location/usr/bin, whose raw clang/swiftc bypasses xcrun SDKROOT injection on macOS).
         {
           printf '%s\n' "$SWIFTLY_BIN"
           if [ -n "$location" ]; then
             printf '%s\n' "$location"
-            if [ -d "$location/usr/bin" ]; then
-              printf '%s/usr/bin\n' "$location"
-            fi
           fi
         } >> "$GITHUB_PATH"
-        swift --version
+        "$SWIFTLY_BIN/swift" --version

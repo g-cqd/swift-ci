@@ -214,7 +214,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: .build/swift-ci-src
+          path: .swift-ci-src
           persist-credentials: false
       - name: Setup · Select Xcode ${{ matrix.xcode }}
         if: ${{ matrix.xcode != '' }}
@@ -226,7 +226,7 @@ jobs:
           xcodebuild -version
       - name: Setup · Install Swift ${{ matrix.swift }}
         if: ${{ matrix.installSwift }}
-        uses: ./.build/swift-ci-src/setup-swift
+        uses: ./.swift-ci-src/setup-swift
         with:
           swift-version: ${{ matrix.swift }}
       - name: Cache · Compute Identity
@@ -288,7 +288,7 @@ jobs:
             echo "SWIFT_CI_NOTARY_ISSUER=$NOTARY_ISSUER" >> "$GITHUB_ENV"
           fi
       - name: ${{ matrix.title }}
-        uses: ./.build/swift-ci-src
+        uses: ./.swift-ci-src
         with:
           arguments: ${{ matrix.id }}
           config: ${{ inputs.config }}

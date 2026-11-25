@@ -23,7 +23,15 @@ public enum ReleaseNote {
     }
 
     /// The note with its Archives section filled, or every problem found.
-    public static func fill(_ text: String, assets: [Asset]) -> Result<String, Problems> {
+    ///
+    /// When `style == .freeform`, any non-empty note is accepted: if an `## Archives` section is present it is filled in
+    /// place (and any written 64-hex digest is verified against `assets`); otherwise an `## Archives` section is appended.
+    public static func fill(
+        _ text: String,
+        assets: [Asset],
+        style: Configuration.Release.NoteStyle = .structured
+    ) -> Result<String, Problems> {
+        if style == .freeform { return fillFreeform(text, assets: assets) }
         var title = ""
         var bodies: [String: [String]] = [:]
         var order: [String] = []
@@ -47,25 +55,60 @@ public enum ReleaseNote {
                 problems.append("empty section: \(name) (write the change, or none)")
             }
         }
-        if assets.isEmpty { problems.append("no published .sha256 file") }
-        let published = Set(assets.map(\.digest))
-        for digest in digests(in: (bodies["Archives"] ?? []).joined(separator: "\n")) where !published.contains(digest)
-        {
-            problems.append("Archives: \(digest) does not match a published .sha256")
-        }
+        let archiveText = (bodies["Archives"] ?? []).joined(separator: "\n")
+        problems.append(contentsOf: assetProblems(in: archiveText, assets: assets))
         guard problems.isEmpty else { return .failure(Problems(messages: problems)) }
 
-        var archives = [""] + assets.map { "- `\($0.name)`: `\($0.digest)`" }
-        for asset in assets where asset.name.hasSuffix(".artifactbundle.zip") {
-            archives += ["", "SwiftPM checksum (`swift package compute-checksum`): `\(asset.digest)`"]
-        }
-        bodies["Archives"] = archives + [""]
+        bodies["Archives"] = [""] + archiveLines(for: assets) + [""]
         var out = title
         for name in order {
             let body = (bodies[name] ?? []).joined(separator: "\n")
             out += "## \(name)\n" + body.trimmingTrailingNewlines() + "\n\n"
         }
         return .success(out.trimmingTrailingNewlines() + "\n")
+    }
+
+    private static func fillFreeform(_ text: String, assets: [Asset]) -> Result<String, Problems> {
+        var problems: [String] = []
+        if withoutComments(text).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            problems.append("release note is empty")
+        }
+        problems.append(contentsOf: assetProblems(in: text, assets: assets))
+        guard problems.isEmpty else { return .failure(Problems(messages: problems)) }
+
+        let block = "## Archives\n\n" + archiveLines(for: assets).joined(separator: "\n") + "\n"
+        let trimmed = text.trimmingTrailingNewlines()
+        if let range = trimmed.range(of: "\n## Archives\n")
+            ?? (trimmed.hasPrefix("## Archives\n")
+                ? trimmed.startIndex ..< trimmed.index(trimmed.startIndex, offsetBy: 12) : nil)
+        {
+            let afterHeading = range.upperBound
+            let nextHeading = trimmed[afterHeading...].range(of: "\n## ")
+            let prefix = String(trimmed[..<range.lowerBound]).trimmingTrailingNewlines()
+            let suffix = nextHeading.map { String(trimmed[$0.lowerBound...]).trimmingTrailingNewlines() } ?? ""
+            var combined = prefix.isEmpty ? block : prefix + "\n\n" + block
+            if !suffix.isEmpty { combined += "\n" + suffix + "\n" }
+            return .success(combined.trimmingTrailingNewlines() + "\n")
+        }
+        return .success(trimmed + "\n\n" + block)
+    }
+
+    private static func assetProblems(in text: String, assets: [Asset]) -> [String] {
+        var problems: [String] = []
+        if assets.isEmpty { problems.append("no published .sha256 file") }
+        let published = Set(assets.map(\.digest))
+        for digest in digests(in: text) where !published.contains(digest) {
+            problems.append("Archives: \(digest) does not match a published .sha256")
+        }
+        return problems
+    }
+
+    private static func archiveLines(for assets: [Asset]) -> [String] {
+        var lines = assets.map { "- `\($0.name)`: `\($0.digest)`" }
+        for asset in assets where asset.name.hasSuffix(".artifactbundle.zip") {
+            lines += ["", "SwiftPM checksum (`swift package compute-checksum`): `\(asset.digest)`"]
+        }
+        return lines
     }
 
     public struct Problems: Error, Equatable, CustomStringConvertible {

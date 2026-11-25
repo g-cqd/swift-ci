@@ -193,6 +193,17 @@ public struct Configuration: Codable, Sendable, Equatable {
         public var executables: [String] = []
         /// The release note of a tag; `{tag}` is replaced. Linted, and its Archives section filled (``ReleaseNote``).
         public var notes = "release-notes/{tag}.md"
+        /// Release note format: `structured` enforces the fixed analyzerkit sections (`ReleaseNote.sections`) and fills
+        /// `## Archives`; `freeform` accepts any non-empty markdown note and appends an `## Archives` checksum table
+        /// when not already present (as `sunset` and `ask` write user-facing release notes).
+        public var noteStyle: NoteStyle = .structured
+        /// Optional macOS Developer ID signing and notarisation settings for archived executables.
+        public var appleSigning: AppleSigning.Options?
+
+        public enum NoteStyle: String, Codable, Sendable {
+            case structured
+            case freeform
+        }
 
         public init() {}
     }
@@ -363,7 +374,9 @@ enum Defaults {
 
     static func template() throws -> [String: Any] {
         var root = try encode(Configuration())
-        root["release?"] = try encode(Configuration.Release())
+        var release = try encode(Configuration.Release())
+        release["appleSigning?"] = try encode(AppleSigning.Options())
+        root["release?"] = release
         root["documentation?"] = ["warningsAsErrors": true]
         var command = try encode(Configuration.Command(id: "", run: ""))
         command["tla?"] = try encode(TLAModels())
@@ -388,7 +401,9 @@ enum Defaults {
         sample.quality.include = []
         sample.quality.local = [""]
         sample.quality.discipline = Discipline()
-        sample.release = Configuration.Release()
+        var sampleRelease = Configuration.Release()
+        sampleRelease.appleSigning = AppleSigning.Options(identifier: "")
+        sample.release = sampleRelease
         sample.documentation = Configuration.Documentation(targets: [])
         sample.commands = [
             Configuration.Command(

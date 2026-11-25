@@ -111,9 +111,9 @@ public struct Executor {
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)
-            case .archive(let executable, let os):
+            case .archive(let executable, let os, let signing):
                 if dryRun { return print("archive \(executable) into \(Paths.distribution)") }
-                try archive(executable, os: os)
+                try archive(executable, os: os, signing: signing)
         }
     }
 
@@ -278,45 +278,45 @@ public struct Executor {
         if FileManager.default.isExecutableFile(atPath: binary.path) { return binary }
 
         let (url, sha256) = try tool.archive(for: platform)
-        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("swift-ci-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: scratch) }
-        let archive = scratch.appendingPathComponent(URL(string: url)?.lastPathComponent ?? "archive")
-        try Download.fetch(url, to: archive)
-        let actual = try Shell.sha256(of: archive)
-        guard actual == sha256 else {
-            throw SwiftCIError("\(tool.name): the archive's SHA-256 is \(actual), not the pinned \(sha256)")
-        }
+        try AppleSigning.withTemporaryDirectory(prefix: "swift-ci") { scratch in
+            let archive = scratch.appendingPathComponent(URL(string: url)?.lastPathComponent ?? "archive")
+            try Download.fetch(url, to: archive)
+            let actual = try Shell.sha256(of: archive)
+            guard actual == sha256 else {
+                throw SwiftCIError("\(tool.name): the archive's SHA-256 is \(actual), not the pinned \(sha256)")
+            }
 
-        let unpacked = scratch.appendingPathComponent("unpacked")
-        try FileManager.default.createDirectory(at: unpacked, withIntermediateDirectories: true)
-        if url.hasSuffix(".zip") {
-            try Shell.run(["unzip", "-q", archive.path, "-d", unpacked.path])
-        } else {
-            try Shell.run(["tar", "-xzf", archive.path, "-C", unpacked.path])
-        }
-        let reported = try Shell.output([
-            unpacked.appendingPathComponent(tool.binaryPath(for: platform)).path, "--version"
-        ])
-        guard reported.contains(tool.version) else {
-            throw SwiftCIError(
-                "\(tool.name) reports '\(reported.trimmingCharacters(in: .whitespacesAndNewlines))', not \(tool.version)"
+            let unpacked = scratch.appendingPathComponent("unpacked")
+            try FileManager.default.createDirectory(at: unpacked, withIntermediateDirectories: true)
+            if url.hasSuffix(".zip") {
+                try Shell.run(["unzip", "-q", archive.path, "-d", unpacked.path])
+            } else {
+                try Shell.run(["tar", "-xzf", archive.path, "-C", unpacked.path])
+            }
+            let reported = try Shell.output([
+                unpacked.appendingPathComponent(tool.binaryPath(for: platform)).path, "--version"
+            ])
+            guard reported.contains(tool.version) else {
+                throw SwiftCIError(
+                    "\(tool.name) reports '\(reported.trimmingCharacters(in: .whitespacesAndNewlines))', not \(tool.version)"
+                )
+            }
+            try FileManager.default.createDirectory(
+                at: directory.deletingLastPathComponent(),
+                withIntermediateDirectories: true
             )
+            try? FileManager.default.removeItem(at: directory)
+            try FileManager.default.moveItem(at: unpacked, to: directory)
         }
-        try FileManager.default.createDirectory(
-            at: directory.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.moveItem(at: unpacked, to: directory)
         return binary
     }
 
     // MARK: Archives
 
-    /// `<executable>-<version>-<os>-<arch>.tar.gz` and its `.sha256` in `.build/swift-ci/dist`: the stripped binary,
-    /// LICENSE and README, and on Linux the Swift runtime libraries it links.
-    func archive(_ executable: String, os: OS) throws {
+    /// `<executable>-<version>-<os>-<arch>.tar.gz` and its `.sha256` in `.build/swift-ci/dist`: the stripped binary
+    /// (signed and optionally notarised on macOS when `signing` is configured), LICENSE and README, and on Linux the
+    /// Swift runtime libraries it links.
+    func archive(_ executable: String, os: OS, signing: AppleSigning.Options? = nil) throws {
         let binDirectory = try Shell.output(["swift", "build", "-c", "release", "--show-bin-path"], directory: root)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let binary = URL(fileURLWithPath: binDirectory).appendingPathComponent(executable)
@@ -338,6 +338,9 @@ public struct Executor {
         let copy = folder.appendingPathComponent(executable).path
         if os == .macOS {
             try Shell.run(["strip", "-S", "-x", copy])
+            if let signing, signing.sign {
+                try signAndNotarizeMacOSExecutable(at: copy, executable: executable, options: signing)
+            }
         } else {
             try Shell.run(["strip", copy])
             // Dynamically linked: the Swift runtime libraries go beside the binary.
@@ -357,6 +360,51 @@ public struct Executor {
         try "\(digest)  \(name).tar.gz\n"
             .write(to: dist.appendingPathComponent("\(name).tar.gz.sha256"), atomically: true, encoding: .utf8)
         print("\(name).tar.gz \(digest)")
+    }
+
+    private func signAndNotarizeMacOSExecutable(
+        at binaryPath: String,
+        executable: String,
+        options: AppleSigning.Options
+    ) throws {
+        guard let credentials = AppleSigning.Credentials.fromEnvironment() else {
+            try handleMissingCredential(
+                "macOS signing",
+                envHint: "SWIFT_CI_SIGN_IDENTITY",
+                executable: executable,
+                requireOnTag: options.requireOnTag
+            )
+            return
+        }
+        try AppleSigning.signExecutable(
+            at: binaryPath,
+            executableName: executable,
+            options: options,
+            credentials: credentials
+        )
+        guard options.notarize else { return }
+        guard credentials.hasNotaryCredentials else {
+            try handleMissingCredential(
+                "macOS notarisation",
+                envHint: "notary credentials",
+                executable: executable,
+                requireOnTag: options.requireOnTag
+            )
+            return
+        }
+        try AppleSigning.notarizeExecutable(at: binaryPath, executableName: executable, credentials: credentials)
+    }
+
+    private func handleMissingCredential(
+        _ step: String,
+        envHint: String,
+        executable: String,
+        requireOnTag: Bool
+    ) throws {
+        if let tag, requireOnTag {
+            throw SwiftCIError("\(step) is enabled for \(executable) on tag \(tag), but \(envHint) is not set")
+        }
+        print("swift-ci: \(envHint) not set; skipping \(step) for \(executable)")
     }
 }
 

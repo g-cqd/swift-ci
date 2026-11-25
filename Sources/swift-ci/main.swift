@@ -235,10 +235,13 @@ func main() throws {
             try publisher.publish(repository: try arguments.require("--repository"))
         case "release-note":
             guard arguments.positional.count == 2 else { throw SwiftCIError("release-note needs NOTE and ASSETS") }
+            let configuration = try? Configuration.load(root: root, file: configFile)
+            let style = configuration?.release?.noteStyle ?? .structured
             let text = try String(contentsOfFile: arguments.positional[0], encoding: .utf8)
             switch ReleaseNote.fill(
                 text,
-                assets: try ReleaseNote.assets(in: URL(fileURLWithPath: arguments.positional[1]))
+                assets: try ReleaseNote.assets(in: URL(fileURLWithPath: arguments.positional[1])),
+                style: style
             ) {
                 case .success(let filled): print(filled, terminator: "")
                 case .failure(let problems):

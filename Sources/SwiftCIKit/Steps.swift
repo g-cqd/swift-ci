@@ -32,8 +32,9 @@ public enum Step: Sendable, Equatable {
     case install(ToolLock.Tool)
     /// Runs an installed tool.
     case tool(name: String, title: String, arguments: [String])
-    /// Packages a release-built executable into `.build/swift-ci/dist`, checking its `--version` against the tag.
-    case archive(executable: String, os: OS)
+    /// Packages a release-built executable into `.build/swift-ci/dist`, checking its `--version` against the tag
+    /// and optionally applying macOS Developer ID signing and notarisation.
+    case archive(executable: String, os: OS, signing: AppleSigning.Options? = nil)
     /// Writes a file the next steps read, relative to the root.
     case file(path: String, contents: String)
     /// The shipped-library and test-tree rules (``Discipline``).
@@ -53,7 +54,7 @@ public enum Step: Sendable, Equatable {
             case .shell(let title, _): title
             case .install(let tool): "Install \(tool.name) \(tool.version)"
             case .tool(_, let title, _): title
-            case .archive(let executable, _): "Archive \(executable)"
+            case .archive(let executable, _, _): "Archive \(executable)"
             case .file(let path, _): "Write \(path)"
             case .discipline: "Discipline · Shipped Code & Tests"
             case .swiftFormat(let files): "swift-format (\(files.count) files)"
@@ -405,11 +406,12 @@ public struct StepPlanner: Sendable {
     }
 
     func archive(os: OS) throws -> [Step] {
-        guard let executables = configuration.release?.executables, !executables.isEmpty else {
+        guard let release = configuration.release, !release.executables.isEmpty else {
             throw SwiftCIError("no release.executables to archive")
         }
         guard !project.isXcode else { throw SwiftCIError("archives of an Xcode project are not supported yet") }
-        return executables.flatMap { executable in
+        let signing = os == .macOS ? release.appleSigning : nil
+        return release.executables.flatMap { executable in
             [
                 .run(
                     ShellCommand(
@@ -418,7 +420,7 @@ public struct StepPlanner: Sendable {
                             + (os == .linux ? ["-Xlinker", "-rpath", "-Xlinker", "$ORIGIN"] : [])
                     )
                 ),
-                .archive(executable: executable, os: os)
+                .archive(executable: executable, os: os, signing: signing)
             ]
         }
     }

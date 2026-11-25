@@ -51,7 +51,8 @@ public struct Publisher {
         let filled: String
         switch ReleaseNote.fill(
             try String(contentsOf: noteURL, encoding: .utf8),
-            assets: try ReleaseNote.assets(in: assets)
+            assets: try ReleaseNote.assets(in: assets),
+            style: release.noteStyle
         ) {
             case .success(let text): filled = text
             case .failure(let problems): throw SwiftCIError("release note \(notePath):\n\(problems)")
@@ -64,13 +65,15 @@ public struct Publisher {
             .filter { $0.hasSuffix(".tar.gz") || $0.hasSuffix(".zip") || $0.hasSuffix(".sha256") }
             .map { assets.appendingPathComponent($0).path }
         let exists = (try? Shell.output(["gh", "release", "view", tag, "--repo", repository])) != nil
+        var create = ["gh", "release", "create", tag, "--repo", repository, "--notes-file", filledURL.path]
+        if tag.contains("-") { create.append("--prerelease") }
         let commands: [[String]] =
             exists
             ? [
                 ["gh", "release", "upload", tag, "--repo", repository, "--clobber"] + uploads,
                 ["gh", "release", "edit", tag, "--repo", repository, "--notes-file", filledURL.path]
             ]
-            : [["gh", "release", "create", tag, "--repo", repository, "--notes-file", filledURL.path] + uploads]
+            : [create + uploads]
         for command in commands {
             if dryRun { print(command.map(ShellCommand.quote).joined(separator: " ")) } else { try Shell.run(command) }
         }

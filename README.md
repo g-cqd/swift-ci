@@ -149,7 +149,18 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     "local": ["litmus"],               // opt-in, `swift-ci local` only (default: none)
     "lock": "tools/lock.json"          // a lock elsewhere than .ci/tools.lock.json
   },
-  "release": { "executables": ["tool"], "notes": "release-notes/{tag}.md" },
+  "release": {
+    "executables": ["tool"],
+    "notes": "release-notes/{tag}.md",
+    "noteStyle": "structured",          // structured (fixed sections) | freeform (any markdown; appends ## Archives)
+    "appleSigning": {                   // optional macOS Developer ID signing & Apple notarisation on tags
+      "sign": true,
+      "identifier": "tool",             // codesign --identifier (defaults to executable name)
+      "hardenedRuntime": true,          // --options runtime (default true)
+      "notarize": true,                 // xcrun notarytool submit --wait when notary secrets are set
+      "requireOnTag": true              // fail tag builds if signing/notary secrets are missing (default true)
+    }
+  },
   "documentation": { "targets": ["Kit"], "warningsAsErrors": true },
   "commands": [
     { "id": "oracle", "run": "Scripts/oracle.sh", "os": "linux", "cadence": ["push", "tag"] },

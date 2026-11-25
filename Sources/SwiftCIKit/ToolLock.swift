@@ -180,7 +180,7 @@ public struct ToolLock: Codable, Sendable, Equatable {
             ),
             gcqd(
                 "fcheck",
-                "0.4.10",
+                "0.4.11",
                 mac: "cd61d7c35460936f76143ae56feafdef9c77c6f32ea5e7ee8e823d8c25fd232d",
                 linux: "f3fac172f43f27efbde3dc65f246f6ffee3fe271eef46c8316ef1059e8811be9"
             ),
@@ -194,12 +194,12 @@ public struct ToolLock: Codable, Sendable, Equatable {
             // Local-only (mutation testing on this machine); macOS arm64 is the only published archive.
             Tool(
                 name: "litmus",
-                version: "0.4.10",
+                version: "0.4.11",
                 archives: [
                     Platform.macOSArm64.rawValue: .init(
                         url:
                             "https://github.com/g-cqd/litmus/releases/download/v{version}/litmus-{version}-macos-arm64.tar.gz",
-                        sha256: "2a8842642419276a00ef1c086b11f9f9443cf47855a1790ac30d6a29bfd1e83a"
+                        sha256: "4823be8687be31c79bb5fb80265764920065e0f6013c2a936aa9f53d3c6fabec"
                     )
                 ],
                 binary: "litmus-{version}-{platform}/litmus",

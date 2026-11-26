@@ -124,6 +124,15 @@ jobs:
       - name: Setup · Check Out Sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
+      - name: Setup · Select Xcode Supported by CodeQL
+        run: |
+          for app in $(find /Applications -maxdepth 1 -name 'Xcode_*.app' -print | sort -Vr); do
+            ver=$("$app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift" --version 2>/dev/null | head -1 || true)
+            case "$ver" in
+              *"Swift version 6.3.3"*|*"Swift version 6.4"*) continue ;;
+              *"Swift version "*) sudo xcode-select -s "$app"; echo "Selected $app ($ver)"; break ;;
+            esac
+          done
       - name: CodeQL · Initialize
         uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:

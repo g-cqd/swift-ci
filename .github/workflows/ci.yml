@@ -28,8 +28,8 @@ jobs:
       NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
       NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
 
-  # Code scanning as the family uses it, from this commit; swift-ci builds with Xcode's toolchain, so CodeQL reads its
-  # Swift too.
+  # Code scanning as the family uses it, from this commit (Semgrep + CodeQL on workflows; CodeQL's Swift extractor
+  # lags Xcode 26.4's Swift 6.3.3 on macos-26).
   scan:
     name: Code Scanning
     uses: ./.github/workflows/code-scanning.yml
@@ -37,8 +37,6 @@ jobs:
       contents: read
       security-events: write
       actions: read
-    with:
-      codeql-swift: true
 
   # The action alone, as a step of someone else's workflow would use it (`uses: g-cqd/swift-ci@<commit>`).
   action:

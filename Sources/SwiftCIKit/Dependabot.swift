@@ -20,13 +20,54 @@ public struct Dependabot: Codable, Sendable, Equatable {
     public static let path = ".github/dependabot.yml"
     static let weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
-    /// The directories of the package manifests in `files`, `/` for the top level, sorted with it first.
-    public func swiftDirectories(files: [String]) -> [String] {
+    /// The directories of the package manifests in `files`, `/` for the top level, sorted with it first. Sub-manifests
+    /// whose `path:` dependencies cannot resolve in Dependabot's `/repo` checkout are left out when `read` supplies text.
+    public func swiftDirectories(files: [String], read: (String) -> String? = { _ in nil }) -> [String] {
         let excluded = exclude.map(Glob.init)
         let manifests = files.filter { file in
-            (file == "Package.swift" || file.hasSuffix("/Package.swift")) && !excluded.contains { $0.matches(file) }
+            guard file == "Package.swift" || file.hasSuffix("/Package.swift"),
+                !excluded.contains(where: { $0.matches(file) })
+            else { return false }
+            if file != "Package.swift", let source = read(file),
+                !Self.dependabotCanResolve(submanifest: file, source: source)
+            {
+                return false
+            }
+            return true
         }
         return Self.sorted(manifests.map(Self.directory(of:)))
+    }
+
+    /// Dependabot checks every repository out as `repo/`. A sub-manifest fails `swift package show-dependencies` there
+    /// when a `.package(...)` uses a non-literal `path:`, climbs above the repository root, or points at the repository
+    /// root without an explicit `name:` (SwiftPM infers identity `repo` instead of the root package's name).
+    static func dependabotCanResolve(submanifest file: String, source: String) -> Bool {
+        let depth = file.split(separator: "/").count - 1
+        var rest = source[...]
+        while let range = rest.range(of: ".package(") {
+            var cursor = range.upperBound
+            var parens = 1
+            while cursor < rest.endIndex, parens > 0 {
+                if rest[cursor] == "(" { parens += 1 } else if rest[cursor] == ")" { parens -= 1 }
+                rest.formIndex(after: &cursor)
+            }
+            let call = String(rest[range.upperBound ..< rest.index(before: cursor)])
+            rest = rest[cursor...]
+            guard let pathRange = call.range(of: "path:") else { continue }
+            let afterPath = call[pathRange.upperBound...].drop { $0.isWhitespace }
+            guard afterPath.first == "\"" else { return false }
+            let body = afterPath.dropFirst()
+            guard let endQuote = body.firstIndex(of: "\"") else { return false }
+            let literal = String(body[..<endQuote])
+            var level = depth
+            for part in literal.split(separator: "/") {
+                if part == "." { continue }
+                if part == ".." { level -= 1 } else { level += 1 }
+                if level < 0 { return false }
+            }
+            if level == 0, !call.contains("name:") { return false }
+        }
+        return true
     }
 
     /// `/` when there are workflows or a top-level action, and the directory of every other `action.yml`.
@@ -45,8 +86,8 @@ public struct Dependabot: Codable, Sendable, Equatable {
     }
 
     /// The file for a repository holding `files` (paths relative to its top level), or nil when there is nothing to update.
-    public func contents(files: [String]) -> String? {
-        let swift = swiftDirectories(files: files)
+    public func contents(files: [String], read: (String) -> String? = { _ in nil }) -> String? {
+        let swift = swiftDirectories(files: files, read: read)
         let actions = Self.actionDirectories(files: files)
         guard !swift.isEmpty || !actions.isEmpty else { return nil }
         var text = """
@@ -129,9 +170,14 @@ public struct Dependabot: Codable, Sendable, Equatable {
         return files.sorted()
     }
 
+    /// Reads a repository-relative file under `top` as UTF-8, or nil.
+    public static func reader(top: URL) -> (String) -> String? {
+        { try? String(contentsOf: top.appendingPathComponent($0), encoding: .utf8) }
+    }
+
     /// Why the file at `top` is not the one swift-ci writes, or nil when it is (or there is nothing to update).
     public func drift(top: URL) -> String? {
-        guard let expected = contents(files: Self.files(top: top)) else { return nil }
+        guard let expected = contents(files: Self.files(top: top), read: Self.reader(top: top)) else { return nil }
         let url = top.appendingPathComponent(Self.path)
         guard let current = try? String(contentsOf: url, encoding: .utf8) else {
             return "\(Self.path) is missing: run `swift-ci dependabot --write`"

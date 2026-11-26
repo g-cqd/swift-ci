@@ -161,7 +161,12 @@ func main() throws {
         case "dependabot":
             let configuration = try Configuration.load(root: root, file: configFile)
             let top = Dependabot.topLevel(of: root)
-            guard let contents = configuration.dependabot.contents(files: Dependabot.files(top: top)) else {
+            guard
+                let contents = configuration.dependabot.contents(
+                    files: Dependabot.files(top: top),
+                    read: Dependabot.reader(top: top)
+                )
+            else {
                 return print("dependabot: no package manifest or workflow to update")
             }
             guard arguments.flags.contains("--write") else { return print(contents, terminator: "") }

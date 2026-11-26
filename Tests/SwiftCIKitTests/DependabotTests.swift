@@ -14,6 +14,25 @@ struct DependabotTests {
         #expect(Dependabot().swiftDirectories(files: Self.repository) == ["/", "/Benchmarks"])
     }
 
+    @Test func `submanifests with unnamed root path, sibling path, or variable path are left out`() {
+        let files = [
+            "Package.swift",
+            "Unnamed/Package.swift",
+            "Named/Package.swift",
+            "Outside/Sub/Package.swift",
+            "Variable/Package.swift",
+            "Standalone/Package.swift"
+        ]
+        let manifests: [String: String] = [
+            "Unnamed/Package.swift": #"let p = Package(dependencies: [.package(path: "..")])"#,
+            "Named/Package.swift": #"let p = Package(dependencies: [.package(name: "Root", path: "..")])"#,
+            "Outside/Sub/Package.swift": #"let p = Package(dependencies: [.package(path: "../../../Sibling")])"#,
+            "Variable/Package.swift": #"let p = Package(dependencies: [.package(path: localPath)])"#,
+            "Standalone/Package.swift": #"let p = Package(dependencies: [])"#
+        ]
+        #expect(Dependabot().swiftDirectories(files: files, read: { manifests[$0] }) == ["/", "/Named", "/Standalone"])
+    }
+
     @Test func `workflows and a top-level action are the top level; composite actions add their directories`() {
         #expect(Dependabot.actionDirectories(files: Self.repository) == ["/", "/.github/actions/cache", "/setup"])
         #expect(Dependabot.actionDirectories(files: ["Package.swift", "Sources/A.swift"]).isEmpty)

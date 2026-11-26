@@ -1,0 +1,143 @@
+name: Code Scanning
+
+# Static security analysis, uploaded to the repository's code scanning alerts (Security tab, and the checks of a pull
+# request). Opt-in and apart from swift-ci.yml because uploading needs `security-events: write`, which the checks do not.
+#
+#   scan:
+#     name: Code Scanning
+#     uses: g-cqd/swift-ci/.github/workflows/code-scanning.yml@<sha>
+#     permissions:
+#       contents: read
+#       security-events: write
+#       actions: read
+#
+# - Semgrep (Community Edition, no account): the registry's default, secrets and Swift rules. Swift has few rules there;
+#   the default set covers the workflows, scripts and configuration around the code.
+# - CodeQL without a build, for the languages it reads that way (`actions` by default: the workflows; `python` for
+#   scripts).
+# - CodeQL for Swift (opt-in): it supports Swift 5.4 to 6.3 and macOS only, so it needs a package that builds with the
+#   selected Xcode's toolchain.
+# A pull request from a fork gets a read-only token and cannot upload: the jobs skip it.
+on:
+  workflow_call:
+    inputs:
+      semgrep:
+        description: Run Semgrep.
+        type: boolean
+        default: true
+      semgrep-configs:
+        description: The Semgrep registry configurations, space-separated.
+        type: string
+        default: p/default p/secrets p/swift
+      codeql-languages:
+        description: The languages CodeQL analyses without a build (JSON list); [] runs none.
+        type: string
+        default: '["actions"]'
+      codeql-swift:
+        description: Analyse Swift with CodeQL on macOS (needs a package that builds with Xcode's toolchain, Swift 6.3 at most).
+        type: boolean
+        default: false
+      codeql-swift-build:
+        description: The build CodeQL traces for Swift, run in the package's directory.
+        type: string
+        default: swift build
+      package-path:
+        description: The package's directory, for the Swift build.
+        type: string
+        default: "."
+      macos-runner:
+        description: Runner labels (JSON) of the Swift analysis.
+        type: string
+        default: '["macos-26"]'
+
+permissions: {}
+
+jobs:
+  semgrep:
+    name: Security · Semgrep
+    if: ${{ inputs.semgrep && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.187.0@sha256:0c8dfa7aa1ca8c50233ec9110e8cd88d139dedd603d56507493f74c6f4b3e062
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Semgrep · Scan
+        env:
+          CONFIGS: ${{ inputs.semgrep-configs }}
+        run: |
+          set -eu
+          arguments=""
+          for config in $CONFIGS; do arguments="$arguments --config $config"; done
+          # shellcheck disable=SC2086 # one word per configuration
+          semgrep scan $arguments --metrics=off --sarif --output semgrep.sarif
+      - name: Semgrep · Upload
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  codeql:
+    name: Security · CodeQL (${{ matrix.language }})
+    if: ${{ inputs.codeql-languages != '[]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(inputs.codeql-languages) }}
+    steps:
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: CodeQL · Initialize
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - name: CodeQL · Analyze
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:${{ matrix.language }}
+
+  codeql-swift:
+    name: Security · CodeQL (swift)
+    if: ${{ inputs.codeql-swift && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+    runs-on: ${{ fromJSON(inputs.macos-runner) }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: CodeQL · Initialize
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+      - name: CodeQL · Build
+        working-directory: ${{ inputs.package-path }}
+        env:
+          BUILD: ${{ inputs.codeql-swift-build }}
+        run: |
+          swift --version
+          bash -c "$BUILD"
+      - name: CodeQL · Analyze
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:swift

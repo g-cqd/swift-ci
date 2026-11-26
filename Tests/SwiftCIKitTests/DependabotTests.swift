@@ -39,6 +39,8 @@ struct DependabotTests {
                       interval: "weekly"
                       day: "tuesday"
                     open-pull-requests-limit: 5
+                    cooldown:
+                      default-days: 7
                     groups:
                       swift-packages:
                         patterns: ["*"]
@@ -51,6 +53,8 @@ struct DependabotTests {
                     schedule:
                       interval: "weekly"
                       day: "tuesday"
+                    cooldown:
+                      default-days: 7
                     groups:
                       github-actions:
                         patterns: ["*"]
@@ -72,6 +76,11 @@ struct DependabotTests {
         #expect(!off.dependabot.enabled && off.dependabot.exclude == ["Examples/**"] && off.dependabot.day == "monday")
         #expect(throws: SwiftCIError.self) { try configuration(#"{"dependabot": {"day": "Monday"}}"#) }
         #expect(throws: SwiftCIError.self) { try configuration(#"{"dependabot": {"weekly": true}}"#) }
+        #expect(throws: SwiftCIError.self) { try configuration(#"{"dependabot": {"cooldownDays": -1}}"#) }
+        let now = try #require(
+            try configuration(#"{"dependabot": {"cooldownDays": 0}}"#).dependabot.contents(files: ["Package.swift"])
+        )
+        #expect(!now.contains("cooldown:"))
     }
 
     @Test func `quality checks the file first, unless it is turned off`() throws {

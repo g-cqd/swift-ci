@@ -193,7 +193,8 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
   "dependabot": {                      // .github/dependabot.yml, written by `swift-ci dependabot --write`
     "enabled": true,                   // false leaves a hand-written file alone (no quality step)
     "exclude": ["**/Fixtures/**", ".build/**"],   // package manifests left out (globs on their paths)
-    "day": "monday"                    // the weekday of the weekly, grouped updates
+    "day": "monday",                   // the weekday of the weekly, grouped updates
+    "cooldownDays": 7                  // a release waits this long before it is proposed (0: at once)
   }
 }
 ```
@@ -205,6 +206,31 @@ A tool runs only if its archive has the pinned hash and the binary reports the p
 change because a tool moved under it. The built-in lock pins arcleak, deadwood, dolly, fcheck and modeler (the g-cqd
 analyzers), SwiftLint and SwiftFormat; swift-format comes with the toolchain. Each analyzer runs with
 `--strict --no-cache --relative-to .` and its committed baseline when there is one.
+
+## Code scanning
+
+`code-scanning.yml` is a second reusable workflow: static security analysis uploaded to the repository's code scanning
+alerts (the Security tab, and the checks of a pull request). It is apart from `swift-ci.yml` because uploading needs
+`security-events: write`, which the checks never get.
+
+```yaml
+  scan:
+    name: Code Scanning
+    uses: g-cqd/swift-ci/.github/workflows/code-scanning.yml@<commit>
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    # with: { codeql-languages: '["actions", "python"]', codeql-swift: true }
+```
+
+| Job | What it reads | Default |
+| --- | --- | --- |
+| Semgrep, Community Edition (`semgrep-configs`) | the registry's default, secrets and Swift rules: few for Swift, most for the workflows, scripts and configuration around it | on |
+| CodeQL without a build (`codeql-languages`) | `actions` (the workflows); `python` for scripts | `["actions"]` |
+| CodeQL for Swift (`codeql-swift`, `codeql-swift-build`) | the Swift a build compiles; CodeQL supports Swift 5.4 to 6.3, on macOS only | off |
+
+Free for a public repository. A pull request from a fork has a read-only token and cannot upload, so the jobs skip it.
 
 ## On a developer's machine
 

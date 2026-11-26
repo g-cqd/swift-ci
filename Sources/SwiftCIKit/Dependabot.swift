@@ -10,6 +10,9 @@ public struct Dependabot: Codable, Sendable, Equatable {
     public var exclude: [String] = ["**/Fixtures/**", ".build/**"]
     /// The weekday of the weekly updates.
     public var day = "monday"
+    /// Days a release must have been out before a version update proposes it: a compromised release is most often
+    /// caught in its first days. Security updates do not wait. 0 proposes releases at once.
+    public var cooldownDays = 7
 
     public init() {}
 
@@ -53,7 +56,8 @@ public struct Dependabot: Codable, Sendable, Equatable {
             # swift: the version requirements of each package manifest. Revision pins are not Dependabot's to move, and
             # its Swift updater may run an older toolchain than a manifest needs: that directory fails until it catches up.
             # github-actions: actions pinned by commit SHA, the version in a comment; Dependabot updates both.
-            # One grouped pull request per ecosystem, weekly, so the CI runs stay few.
+            # One grouped pull request per ecosystem, weekly, so the CI runs stay few; a release waits out the cooldown
+            # before it is proposed (security updates do not).
             version: 2
             updates:
 
@@ -75,6 +79,7 @@ public struct Dependabot: Codable, Sendable, Equatable {
         lines += directories.map { "      - \(Self.quoted($0))" }
         lines += ["    schedule:", "      interval: \"weekly\"", "      day: \"\(day)\""]
         if let limit { lines.append("    open-pull-requests-limit: \(limit)") }
+        if cooldownDays > 0 { lines += ["    cooldown:", "      default-days: \(cooldownDays)"] }
         lines += ["    groups:", "      \(group):", "        patterns: [\"*\"]"]
         lines += ["    commit-message:", "      prefix: \"\(prefix)\""]
         return lines.joined(separator: "\n") + "\n"

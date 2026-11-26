@@ -4,7 +4,8 @@
 # swift: the version requirements of each package manifest. Revision pins are not Dependabot's to move, and
 # its Swift updater may run an older toolchain than a manifest needs: that directory fails until it catches up.
 # github-actions: actions pinned by commit SHA, the version in a comment; Dependabot updates both.
-# One grouped pull request per ecosystem, weekly, so the CI runs stay few.
+# One grouped pull request per ecosystem, weekly, so the CI runs stay few; a release waits out the cooldown
+# before it is proposed (security updates do not).
 version: 2
 updates:
   - package-ecosystem: "swift"
@@ -14,6 +15,8 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       swift-packages:
         patterns: ["*"]
@@ -27,6 +30,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]

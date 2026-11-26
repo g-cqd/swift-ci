@@ -321,6 +321,9 @@ extension Configuration {
             guard !configuration.swift.versions.isEmpty else {
                 throw SwiftCIError("\(file): swift.versions needs at least one version")
             }
+            guard (0 ... 90).contains(configuration.dependabot.cooldownDays) else {
+                throw SwiftCIError("\(file): dependabot.cooldownDays: 0 to 90 days")
+            }
             guard Dependabot.weekdays.contains(configuration.dependabot.day) else {
                 throw SwiftCIError(
                     "\(file): dependabot.day: a weekday in lowercase, not '\(configuration.dependabot.day)'"

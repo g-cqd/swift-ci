@@ -39,6 +39,8 @@ public enum Step: Sendable, Equatable {
     case file(path: String, contents: String)
     /// The shipped-library and test-tree rules (``Discipline``).
     case discipline(Discipline)
+    /// `.github/dependabot.yml` is the one swift-ci writes (``Dependabot``).
+    case dependabot(Dependabot)
     /// swift-format over these files with the project's `.swift-format`, adapted to the platform (``SwiftFormatLint``).
     case swiftFormat(files: [String])
     /// TLA+ models checked with TLC (``TLAModels``).
@@ -57,6 +59,7 @@ public enum Step: Sendable, Equatable {
             case .archive(let executable, _, _): "Archive \(executable)"
             case .file(let path, _): "Write \(path)"
             case .discipline: "Discipline · Shipped Code & Tests"
+            case .dependabot: "Dependabot · Configuration"
             case .swiftFormat(let files): "swift-format (\(files.count) files)"
             case .tla(let title, _): title
             case .git(let title, _): title
@@ -459,6 +462,7 @@ public struct StepPlanner: Sendable {
 
     func quality(swiftFiles: [String], fileExists: (String) -> Bool, local: Bool) throws -> [Step] {
         var steps: [Step] = []
+        if configuration.dependabot.enabled { steps.append(.dependabot(configuration.dependabot)) }
         for formatter in project.formatters {
             switch formatter {
                 case .swiftFormat:

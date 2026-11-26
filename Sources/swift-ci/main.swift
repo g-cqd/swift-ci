@@ -9,6 +9,8 @@ let usage = """
       swift-ci baseline                        accept the analyzers' current findings (.ci/baselines/<tool>.json)
       swift-ci detect                          what the project is, as swift-ci reads it
       swift-ci validate                        check .ci/action.json and the tool lock
+      swift-ci dependabot [--write]            the repository's .github/dependabot.yml, from its manifests and
+                                               workflows (the quality check fails when the file differs)
       swift-ci plan [--event E --ref R --base SHA] [--github-output FILE]
                                                the jobs of an event (JSON; GitHub outputs in Actions). E is a GitHub
                                                event name or a trigger: push, pull-request, merge-queue, nightly, tag,
@@ -52,7 +54,7 @@ struct Arguments {
                 options[argument] = arguments[index + 1]
                 index += 2
             } else if argument.hasPrefix("--") {
-                guard ["--dry-run", "--help", "--push", "--heads", "--all"].contains(argument) else {
+                guard ["--dry-run", "--help", "--push", "--heads", "--all", "--write"].contains(argument) else {
                     throw SwiftCIError("unknown option \(argument)")
                 }
                 flags.insert(argument)
@@ -154,6 +156,23 @@ func main() throws {
             try lock.validate()
             try Scaffold.checkBootstrap(root: root)
             print("ok: \(configFile) and the tool lock are valid (\(project.kind.rawValue))")
+        case "dependabot":
+            let configuration = try Configuration.load(root: root, file: configFile)
+            let top = Dependabot.topLevel(of: root)
+            guard let contents = configuration.dependabot.contents(files: Dependabot.files(top: top)) else {
+                return print("dependabot: no package manifest or workflow to update")
+            }
+            guard arguments.flags.contains("--write") else { return print(contents, terminator: "") }
+            let url = top.appendingPathComponent(Dependabot.path)
+            if (try? String(contentsOf: url, encoding: .utf8)) == contents {
+                return print("unchanged \(Dependabot.path)")
+            }
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try contents.write(to: url, atomically: true, encoding: .utf8)
+            print("wrote \(Dependabot.path)")
         case "bootstrap":
             try Scaffold.writeBootstrap(root: root)
             print("wrote \(Scaffold.bootstrapPath)")

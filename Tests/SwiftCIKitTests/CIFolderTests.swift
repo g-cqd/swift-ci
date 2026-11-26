@@ -120,6 +120,7 @@ struct AdoptionTests {
         ]
         #expect(
             commandLines(try planner.steps(for: CheckID.quality, swiftFiles: files)) == [
+                "dependabot",
                 "swift format lint --strict --parallel --configuration .swift-format Package.swift Sources/A/a.swift Tests/AT/t.swift"
             ]
         )

@@ -108,6 +108,11 @@ public struct Executor {
                     return print("benchmarks of \(comparison.package) here and at the commit before, compared")
                 }
                 try compare(comparison)
+            case .dependabot(let dependabot):
+                let top = Dependabot.topLevel(of: root)
+                if dryRun { return print("dependabot: check \(top.appendingPathComponent(Dependabot.path).path)") }
+                if let drift = dependabot.drift(top: top) { throw SwiftCIError("dependabot: \(drift)") }
+                print("dependabot: \(Dependabot.path) is up to date")
             case .discipline(let discipline):
                 if dryRun { return print("discipline: \(discipline.shipped.joined(separator: " "))") }
                 try check(discipline)

@@ -147,12 +147,14 @@ struct StepsTests {
             "development/probe.swift", "Examples/Demo/Package.swift"
         ]
         let lines = try steps(CheckID.quality, files: files, existing: [".dolly-baseline.json"])
+        #expect(lines.first == "dependabot")
+        let rest = Array(lines.dropFirst())
         #expect(
-            lines.first
+            rest.first
                 == "swift format lint --strict --parallel --configuration .swift-format Package.swift Sources/A/a.swift"
         )
         #expect(
-            Array(lines.dropFirst()) == [
+            Array(rest.dropFirst()) == [
                 "install deadwood", "deadwood analyze --strict --no-cache --relative-to . Sources Tests",
                 "install dolly",
                 "dolly analyze --strict --no-cache --relative-to . --baseline .dolly-baseline.json Sources Tests",
@@ -172,7 +174,8 @@ struct StepsTests {
         let lines = try steps(CheckID.quality, json, project: project)
         #expect(
             lines == [
-                "install swiftlint", "swiftlint lint --strict --quiet --config .swiftlint.yml", "install swiftformat",
+                "dependabot", "install swiftlint", "swiftlint lint --strict --quiet --config .swiftlint.yml",
+                "install swiftformat",
                 "swiftformat --lint .", "install modeler", "modeler check --strict --no-cache --relative-to . Sources"
             ]
         )

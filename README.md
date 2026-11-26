@@ -78,6 +78,11 @@ swift run --package-path swift-ci swift-ci run linux-debug
 `swift-ci baseline` writes each analyzer's current findings to `.ci/baselines/`, to adopt the gate on a codebase with
 a backlog: from then on only a new finding fails.
 
+`swift-ci dependabot --write` writes the repository's `.github/dependabot.yml`: a weekly, grouped update of every
+package manifest (but fixtures) and of the actions of every workflow and composite action. The quality check fails when
+the file differs from what it would write, so a manifest or an action added later is never left out. The `dependabot`
+key changes what it writes; `"enabled": false` leaves a hand-written file alone.
+
 Paths inside the configuration are relative to the package's directory: the repository root, or `package-path` (see
 [Several packages in one repository](#several-packages-in-one-repository)). Formatter configurations (`.swift-format`,
 `.swiftlint.yml`, `.swiftformat`) stay there, where Xcode, editors and the tools find them.
@@ -174,7 +179,12 @@ Every key is optional; an unknown key is an error naming its path, so a typo can
     { "id": "suites", "git": [{ "git": "https://github.com/o/suite", "commit": "<40 hex>", "into": ".build/fixtures/suite" }],
       "before": ["linux-debug", "macos-debug"] }                                      // a repository at a pinned commit
   ],
-  "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"]
+  "documentationOnlyPaths": ["docs/**", "development/**", "release-notes/**", "*.md", "LICENSE"],
+  "dependabot": {                      // .github/dependabot.yml, written by `swift-ci dependabot --write`
+    "enabled": true,                   // false leaves a hand-written file alone (no quality step)
+    "exclude": ["**/Fixtures/**", ".build/**"],   // package manifests left out (globs on their paths)
+    "day": "monday"                    // the weekday of the weekly, grouped updates
+  }
 }
 ```
 

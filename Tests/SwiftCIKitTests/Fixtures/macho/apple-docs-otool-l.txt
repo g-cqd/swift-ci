@@ -1,0 +1,226 @@
+Load command 14
+          cmd LC_LOAD_DYLIB
+      cmdsize 96
+         name /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 5027.1.8
+compatibility version 300.0.0
+Load command 15
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libobjc.A.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 228.0.0
+compatibility version 1.0.0
+Load command 16
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libSystem.B.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1359.40.3
+compatibility version 1.0.0
+Load command 17
+          cmd LC_LOAD_DYLIB
+      cmdsize 104
+         name /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 5027.1.8
+compatibility version 150.0.0
+Load command 18
+          cmd LC_LOAD_DYLIB
+      cmdsize 104
+         name /System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 2050.1.6
+compatibility version 64.0.0
+Load command 19
+          cmd LC_LOAD_DYLIB
+      cmdsize 96
+         name /System/Library/Frameworks/CoreText.framework/Versions/A/CoreText (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 910.0.0
+compatibility version 1.0.0
+Load command 20
+          cmd LC_LOAD_DYLIB
+      cmdsize 96
+         name /System/Library/Frameworks/CryptoKit.framework/Versions/A/CryptoKit (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 21
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/Network.framework/Versions/A/Network (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6681.41.1
+compatibility version 1.0.0
+Load command 22
+          cmd LC_LOAD_DYLIB
+      cmdsize 96
+         name /System/Library/Frameworks/Security.framework/Versions/A/Security (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 62460.40.78
+compatibility version 1.0.0
+Load command 23
+          cmd LC_LOAD_DYLIB
+      cmdsize 48
+         name /usr/lib/libc++.1.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 2200.32.0
+compatibility version 1.0.0
+Load command 24
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libcompression.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 25
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libsqlite3.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 408.0.0
+compatibility version 9.0.0
+Load command 26
+          cmd LC_LOAD_WEAK_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswiftCompression.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 18.0.0
+compatibility version 1.0.0
+Load command 27
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftCore.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 28
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswiftCoreFoundation.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 120.100.0
+compatibility version 1.0.0
+Load command 29
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftDarwin.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 428.40.1
+compatibility version 1.0.0
+Load command 30
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftDispatch.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1605.40.4
+compatibility version 1.0.0
+Load command 31
+          cmd LC_LOAD_WEAK_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftIOKit.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 32
+          cmd LC_LOAD_WEAK_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftObjectiveC.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 973.1.0
+compatibility version 1.0.0
+Load command 33
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswiftSynchronization.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 34
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftSystem.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 5027.0.67
+compatibility version 1.0.0
+Load command 35
+          cmd LC_LOAD_DYLIB
+      cmdsize 80
+         name /usr/lib/swift/libswiftUniformTypeIdentifiers.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 917.1.12
+compatibility version 1.0.0
+Load command 36
+          cmd LC_LOAD_WEAK_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswiftXPC.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 167.0.2
+compatibility version 1.0.0
+Load command 37
+          cmd LC_LOAD_WEAK_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswift_Builtin_float.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 38
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswift_Concurrency.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 39
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name /usr/lib/swift/libswift_StringProcessing.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 40
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/swift/libswiftos.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1090.40.3
+compatibility version 1.0.0
+Load command 41
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name @rpath/libswiftCompatibilitySpan.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 0.0.0
+compatibility version 0.0.0
+Load command 42
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswift_errno.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 428.40.1
+compatibility version 1.0.0
+Load command 43
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name /usr/lib/swift/libswift_stdio.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 428.40.1
+compatibility version 1.0.0
+Load command 44
+          cmd LC_RPATH
+      cmdsize 32
+         path /usr/lib/swift (offset 12)
+Load command 45
+          cmd LC_RPATH
+      cmdsize 32
+         path @loader_path (offset 12)
+Load command 46
+          cmd LC_RPATH
+      cmdsize 152
+         path /var/run/cryptex/Metal.xctoolchain/usr/lib/swift-6.2/macosx (offset 12)
+Load command 47
+          cmd LC_RPATH
+      cmdsize 120
+         path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx (offset 12)

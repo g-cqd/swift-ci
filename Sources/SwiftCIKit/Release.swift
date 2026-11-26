@@ -77,7 +77,8 @@ public enum ReleaseNote {
         guard problems.isEmpty else { return .failure(Problems(messages: problems)) }
 
         let block = "## Archives\n\n" + archiveLines(for: assets).joined(separator: "\n") + "\n"
-        let trimmed = text.trimmingTrailingNewlines()
+        // Trailing newlines are trimmed first, so the heading can also be the note's last line.
+        let trimmed = text.trimmingTrailingNewlines() + "\n"
         if let range = trimmed.range(of: "\n## Archives\n")
             ?? (trimmed.hasPrefix("## Archives\n")
                 ? trimmed.startIndex ..< trimmed.index(trimmed.startIndex, offsetBy: 12) : nil)
@@ -90,7 +91,7 @@ public enum ReleaseNote {
             if !suffix.isEmpty { combined += "\n" + suffix + "\n" }
             return .success(combined.trimmingTrailingNewlines() + "\n")
         }
-        return .success(trimmed + "\n\n" + block)
+        return .success(trimmed.trimmingTrailingNewlines() + "\n\n" + block)
     }
 
     private static func assetProblems(in text: String, assets: [Asset]) -> [String] {

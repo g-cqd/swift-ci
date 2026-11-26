@@ -314,8 +314,9 @@ public struct Executor {
     // MARK: Archives
 
     /// `<executable>-<version>-<os>-<arch>.tar.gz` and its `.sha256` in `.build/swift-ci/dist`: the stripped binary
-    /// (signed and optionally notarised on macOS when `signing` is configured), LICENSE and README, and on Linux the
-    /// Swift runtime libraries it links.
+    /// (signed and optionally notarised on macOS when `signing` is configured), LICENSE and README; on macOS the
+    /// back-deployment libraries it links through `@rpath` (see ``MachOPortability``), on Linux the Swift runtime
+    /// libraries it links.
     func archive(_ executable: String, os: OS, signing: AppleSigning.Options? = nil) throws {
         let binDirectory = try Shell.output(["swift", "build", "-c", "release", "--show-bin-path"], directory: root)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -337,6 +338,7 @@ public struct Executor {
         }
         let copy = folder.appendingPathComponent(executable).path
         if os == .macOS {
+            try makePortable(copy, into: folder)
             try Shell.run(["strip", "-S", "-x", copy])
             if let signing, signing.sign {
                 try signAndNotarizeMacOSExecutable(at: copy, executable: executable, options: signing)
@@ -344,14 +346,11 @@ public struct Executor {
         } else {
             try Shell.run(["strip", copy])
             // Dynamically linked: the Swift runtime libraries go beside the binary.
-            for line in try Shell.output(["ldd", binary.path]).split(separator: "\n") {
-                let words = line.split(separator: " ")
-                if words.count >= 3, words[2].hasPrefix("/usr/lib/swift/") {
-                    let library = URL(fileURLWithPath: String(words[2]))
-                    let destination = folder.appendingPathComponent(library.lastPathComponent)
-                    if !files.fileExists(atPath: destination.path) {
-                        try files.copyItem(at: library, to: destination)
-                    }
+            for path in LinuxRuntime.librariesToBundle(lddOutput: try Shell.output(["ldd", binary.path])) {
+                let library = URL(fileURLWithPath: path)
+                let destination = folder.appendingPathComponent(library.lastPathComponent)
+                if !files.fileExists(atPath: destination.path) {
+                    try files.copyItem(at: library, to: destination)
                 }
             }
         }
@@ -360,6 +359,30 @@ public struct Executor {
         try "\(digest)  \(name).tar.gz\n"
             .write(to: dist.appendingPathComponent("\(name).tar.gz.sha256"), atomically: true, encoding: .utf8)
         print("\(name).tar.gz \(digest)")
+    }
+
+    /// Bundles `@rpath` back-deployment libraries beside `binary` (Apple's signature kept: library validation accepts
+    /// it under the hardened runtime) and drops the build machine's rpaths. Unresolvable `@rpath` libraries fail the
+    /// archive: the binary would not launch elsewhere.
+    private func makePortable(_ binary: String, into folder: URL) throws {
+        let files = FileManager.default
+        let plan = MachOPortability.plan(otoolLoadCommands: try Shell.output(["otool", "-l", binary])) {
+            files.fileExists(atPath: $0)
+        }
+        guard plan.unresolved.isEmpty else {
+            let missing = plan.unresolved.joined(separator: ", ")
+            throw SwiftCIError("\(binary) links \(missing) through @rpath, found in none of its rpaths")
+        }
+        for library in plan.bundled {
+            let source = URL(fileURLWithPath: library)
+            try files.copyItem(at: source, to: folder.appendingPathComponent(source.lastPathComponent))
+        }
+        for rpath in plan.removedRpaths {
+            try Shell.run(["install_name_tool", "-delete_rpath", rpath, binary])
+        }
+        if plan.addsLoaderPath {
+            try Shell.run(["install_name_tool", "-add_rpath", "@loader_path", binary])
+        }
     }
 
     private func signAndNotarizeMacOSExecutable(

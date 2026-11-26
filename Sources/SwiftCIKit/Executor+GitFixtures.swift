@@ -16,27 +16,38 @@ extension Executor {
         {
             return print("\(fixture.into): \(fixture.git) at \(fixture.commit.prefix(12)), already there")
         }
-        let parent = target.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-        // Beside the target, so the final move stays on one volume and an interrupted fetch never looks complete.
-        let work = parent.appendingPathComponent(".\(target.lastPathComponent)-\(UUID().uuidString).part")
-        defer { try? FileManager.default.removeItem(at: work) }
         print("\(fixture.into): fetching \(fixture.git) at \(fixture.commit.prefix(12))")
         fflush(nil)
-        for command in fixture.fetchCommands(into: work.path) {
-            try Shell.run(command, directory: root)
+        try Staging.place(target) { work in
+            for command in fixture.fetchCommands(into: work.path) {
+                try Shell.run(command, directory: root)
+            }
+            let head = try Shell.output(["git", "-C", work.path, "rev-parse", "HEAD"], directory: root, quiet: true)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard head == fixture.commit else {
+                throw SwiftCIError(
+                    "\(fixture.into): \(fixture.git) gave commit \(head), not the pinned \(fixture.commit)"
+                )
+            }
+            try FileManager.default.removeItem(at: work.appendingPathComponent(".git"))
+            try (fixture.commit + "\n")
+                .write(to: work.appendingPathComponent(GitFixture.stamp), atomically: true, encoding: .utf8)
         }
-        let head = try Shell.output(["git", "-C", work.path, "rev-parse", "HEAD"], directory: root, quiet: true)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard head == fixture.commit else {
-            throw SwiftCIError("\(fixture.into): \(fixture.git) gave commit \(head), not the pinned \(fixture.commit)")
-        }
-        try FileManager.default.removeItem(at: work.appendingPathComponent(".git"))
-        try (fixture.commit + "\n")
-            .write(to: work.appendingPathComponent(GitFixture.stamp), atomically: true, encoding: .utf8)
+    }
+}
+
+/// A file or directory built beside its target, then moved over it: the move stays on one volume, and an interrupted
+/// build never leaves something that looks complete.
+enum Staging {
+    static func place(_ target: URL, build: (URL) throws -> Void) throws {
+        let parent = target.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let part = parent.appendingPathComponent(".\(target.lastPathComponent)-\(UUID().uuidString).part")
+        defer { try? FileManager.default.removeItem(at: part) }
+        try build(part)
         if FileManager.default.fileExists(atPath: target.path) {
             try FileManager.default.removeItem(at: target)
         }
-        try FileManager.default.moveItem(at: work, to: target)
+        try FileManager.default.moveItem(at: part, to: target)
     }
 }

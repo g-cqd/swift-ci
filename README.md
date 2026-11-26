@@ -83,6 +83,14 @@ package manifest (but fixtures) and of the actions of every workflow and composi
 the file differs from what it would write, so a manifest or an action added later is never left out. The `dependabot`
 key changes what it writes; `"enabled": false` leaves a hand-written file alone.
 
+The `advisories` check (`swift-ci run advisories`, the **Security · Advisories** job) looks every pinned version of every
+`Package.resolved` up in the published advisories of the dependency's own repository and in GitHub's advisory database,
+and fails when one holds it. Both are needed: a maintainer's advisory reaches the database only once GitHub reviews it,
+and Dependabot alerts only on the database. It runs on every trigger, the scheduled run included even with no new
+commit, which is when a newly published advisory shows; `"checks": {"advisories": ["nightly"]}` narrows it like any
+check. A pin by revision or branch cannot be compared and is listed. It needs no permission; the workflow's token only
+raises GitHub's rate limit.
+
 Paths inside the configuration are relative to the package's directory: the repository root, or `package-path` (see
 [Several packages in one repository](#several-packages-in-one-repository)). Formatter configurations (`.swift-format`,
 `.swiftlint.yml`, `.swiftformat`) stay there, where Xcode, editors and the tools find them.
@@ -104,10 +112,12 @@ Paths inside the configuration are relative to the package's directory: the repo
 | `documentation` | macOS | nightly, tag, manual |
 | `archive-linux`, `archive-macos`, then the release | both | tag (archives also manual) |
 | `commands`: the project's own | as configured | as configured |
+| `advisories`: every pinned version against the published advisories (no build) | Linux | every trigger, skipped runs too |
 
 - **Every change** is a push, a pull request, a merge queue, a tag or a manual run. A change that touches only
   `documentationOnlyPaths` (docs, ADRs, release notes, Markdown) runs nothing, and the gate passes.
-- **Nightly** runs only if a commit landed in the last 24 hours.
+- **Nightly** runs only if a commit landed in the last 24 hours; `advisories` runs anyway, since a new advisory needs
+  no new commit.
 - A newer push cancels the run of the previous one on the same ref; a tag or the nightly run is never cancelled.
 - **Build once.** Tests are built once and run with `--skip-build`. In release, `-Xswiftc -enable-testing` makes that
   build the one `swift test` needs: `swift build -c release` followed by `swift test -c release` compiles everything

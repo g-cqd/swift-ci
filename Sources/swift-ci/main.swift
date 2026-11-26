@@ -11,6 +11,8 @@ let usage = """
       swift-ci validate                        check .ci/action.json and the tool lock
       swift-ci dependabot [--write]            the repository's .github/dependabot.yml, from its manifests and
                                                workflows (the quality check fails when the file differs)
+      swift-ci run advisories                  every pinned version of every Package.resolved against the published
+                                               advisories (its repository's and GitHub's database)
       swift-ci plan [--event E --ref R --base SHA] [--github-output FILE]
                                                the jobs of an event (JSON; GitHub outputs in Actions). E is a GitHub
                                                event name or a trigger: push, pull-request, merge-queue, nightly, tag,
@@ -198,7 +200,7 @@ func main() throws {
                 let lines = [
                     "linux=\(try compact(plan.linux))", "macos=\(try compact(plan.macOS))",
                     "has-linux=\(!plan.linux.isEmpty)", "has-macos=\(!plan.macOS.isEmpty)",
-                    "publish=\(plan.publish)", "skipped=\(plan.skipped ?? "")"
+                    "publish=\(plan.publish)", "skipped=\(plan.skipped ?? "")", "advisories=\(plan.advisories)"
                 ]
                 try append(lines.joined(separator: "\n") + "\n", to: path)
             }
@@ -207,6 +209,7 @@ func main() throws {
                 if let skipped = plan.skipped { text += "Nothing to check: \(skipped).\n" }
                 for job in plan.linux + plan.macOS { text += "- \(job.title)\n" }
                 if plan.publish { text += "- publish the release\n" }
+                if plan.advisories { text += "- \(CheckID.title(for: CheckID.advisories))\n" }
                 try append(text, to: summary)
             }
         case "steps", "run":

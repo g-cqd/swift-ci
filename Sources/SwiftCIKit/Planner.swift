@@ -24,6 +24,8 @@ public enum CheckID {
     public static let archiveMacOS = "archive-macos"
     /// In `localChecks`: this machine's debug tests.
     public static let hostDebug = "debug"
+    /// Published security advisories against the pinned dependencies (``Advisories``): a job of its own, on every trigger.
+    public static let advisories = "advisories"
 
     /// `localChecks` for this machine: `debug` becomes its debug check, and a command attached to a check in the list
     /// is left out (it runs with that check already).
@@ -53,6 +55,7 @@ public enum CheckID {
             case platforms: "Compatibility · Apple Platforms"
             case documentation: "Documentation · Build & Validate"
             case archiveLinux, archiveMacOS: "Packaging · Executables"
+            case advisories: "Security · Advisories"
             default: id
         }
     }
@@ -129,6 +132,9 @@ public struct Plan: Codable, Sendable, Equatable {
     public var publish: Bool
     /// Why the run checks nothing, when it does not.
     public var skipped: String?
+    /// Look the pinned dependencies up in the published advisories (``Advisories``). On every trigger by default, the
+    /// skipped runs too: a scheduled run with no new commit is when a newly published advisory shows.
+    public var advisories = false
 
     /// The legs on an advisory toolchain, in either list. They run in the same matrix as the others (one job per OS,
     /// so a run without them has no skipped job to show) and continue on error: their failure is reported, the gate
@@ -173,6 +179,8 @@ public struct Planner: Sendable {
     public func plan(event: Event, changedFiles: [String]?, hoursSinceLastCommit: Double? = nil) throws -> Plan {
         try validate()
         var plan = Plan(trigger: event.trigger, linux: [], macOS: [], publish: false, skipped: nil)
+        plan.advisories = (configuration.checks[CheckID.advisories].map(Set.init) ?? Set(Trigger.allCases))
+            .contains(event.trigger)
         if [.push, .pullRequest, .mergeQueue].contains(event.trigger), let files = changedFiles, !files.isEmpty {
             let documentation = configuration.documentationOnlyPaths.map(Glob.init)
             if files.allSatisfy({ file in documentation.contains { $0.matches(file) } }) {
@@ -275,14 +283,14 @@ public struct Planner: Sendable {
     /// Settings that cannot work together.
     func validate() throws {
         let known = Set(Check.catalog.map(\.id))
-        for id in configuration.checks.keys where !known.contains(id) {
+        for id in configuration.checks.keys where !known.contains(id) && id != CheckID.advisories {
             throw SwiftCIError("checks.\(id): no such check (known: \(known.sorted().joined(separator: ", ")))")
         }
         for id in configuration.swift.matrix
         where !known.contains(id) && !configuration.commands.contains(where: { $0.id == id }) {
             throw SwiftCIError("swift.matrix: no check or command '\(id)'")
         }
-        let ids = known.union(configuration.commands.map(\.id))
+        let ids = known.union(configuration.commands.map(\.id)).union([CheckID.advisories])
         for id in configuration.localChecks where id != CheckID.hostDebug && !ids.contains(id) {
             throw SwiftCIError("localChecks: no check or command '\(id)'")
         }

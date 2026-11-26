@@ -49,6 +49,7 @@ func commandLines(_ steps: [Step]) -> [String] {
             case .file(let path, _): "write \(path)"
             case .discipline(let discipline): "discipline " + discipline.shipped.joined(separator: " ")
             case .dependabot: "dependabot"
+            case .advisories: "advisories"
             case .swiftFormat(let files):
                 SwiftFormatLint.arguments(configuration: ".swift-format", files: files).joined(separator: " ")
             case .tla(_, let models): "tla " + models.models

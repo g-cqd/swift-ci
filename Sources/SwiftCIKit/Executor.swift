@@ -108,6 +108,28 @@ public struct Executor {
                     return print("benchmarks of \(comparison.package) here and at the commit before, compared")
                 }
                 try compare(comparison)
+            case .advisories(let exclude):
+                let top = Dependabot.topLevel(of: root)
+                let excluded = exclude.map(Glob.init)
+                let files = Dependabot.files(top: top)
+                    .filter { file in
+                        (file == "Package.resolved" || file.hasSuffix("/Package.resolved"))
+                            && !excluded.contains { $0.matches(file) }
+                    }
+                if dryRun { return print("advisories: \(files.joined(separator: " "))") }
+                let report = try Advisories.check(top: top, files: files, source: GitHubAdvisories())
+                print("advisories: \(report.checked.count) pinned version(s) in \(files.count) lockfile(s) looked up")
+                if !report.unchecked.isEmpty {
+                    print(
+                        "not compared (revision, branch or not on GitHub): \(report.unchecked.joined(separator: ", "))"
+                    )
+                }
+                for finding in report.findings { print("\(inActions ? "::error::" : "[ADVISORY] ")\(finding)") }
+                if !report.findings.isEmpty {
+                    throw SwiftCIError(
+                        "advisories: \(report.findings.count) published advisory(ies) hold a pinned version"
+                    )
+                }
             case .dependabot(let dependabot):
                 let top = Dependabot.topLevel(of: root)
                 if dryRun { return print("dependabot: check \(top.appendingPathComponent(Dependabot.path).path)") }
@@ -256,17 +278,14 @@ public struct Executor {
     func installTLC() throws -> URL {
         let jar = toolCache.appendingPathComponent("tla2tools-\(TLC.version).jar")
         if FileManager.default.fileExists(atPath: jar.path), try Shell.sha256(of: jar) == TLC.sha256 { return jar }
-        try FileManager.default.createDirectory(at: toolCache, withIntermediateDirectories: true)
-        let part = toolCache.appendingPathComponent("tla2tools-\(TLC.version)-\(UUID().uuidString).part")
-        defer { try? FileManager.default.removeItem(at: part) }
         print("swift-ci: downloading tla2tools \(TLC.version)")
-        try Download.fetch(TLC.url, to: part)
-        let actual = try Shell.sha256(of: part)
-        guard actual == TLC.sha256 else {
-            throw SwiftCIError("tla2tools.jar: the SHA-256 is \(actual), not the pinned \(TLC.sha256)")
+        try Staging.place(jar) { part in
+            try Download.fetch(TLC.url, to: part)
+            let actual = try Shell.sha256(of: part)
+            guard actual == TLC.sha256 else {
+                throw SwiftCIError("tla2tools.jar: the SHA-256 is \(actual), not the pinned \(TLC.sha256)")
+            }
         }
-        try? FileManager.default.removeItem(at: jar)
-        try FileManager.default.moveItem(at: part, to: jar)
         return jar
     }
 
@@ -523,29 +542,36 @@ enum Download {
         throw SwiftCIError("download of \(address) failed: \(failure)")
     }
 
+    private static func get(_ url: URL) -> Result<Data, SwiftCIError> {
+        do {
+            let (status, data) = try HTTP.send(URLRequest(url: url))
+            return status == 200 ? .success(data) : .failure(SwiftCIError("HTTP \(status)"))
+        } catch {
+            return .failure(SwiftCIError(error.localizedDescription))
+        }
+    }
+}
+
+/// One HTTPS request with Foundation, waited for: its status and body.
+enum HTTP {
     private final class Box: @unchecked Sendable {
-        var result: Result<Data, SwiftCIError> = .failure(SwiftCIError("no response"))
+        var result: Result<(status: Int, data: Data), any Error> = .failure(SwiftCIError("no response"))
     }
 
-    private static func get(_ url: URL) -> Result<Data, SwiftCIError> {
+    @Sendable static func send(_ request: URLRequest) throws -> (status: Int, data: Data) {
         let box = Box()
         let done = DispatchSemaphore(value: 0)
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
             defer { done.signal() }
             if let error {
-                box.result = .failure(SwiftCIError(error.localizedDescription))
-                return
+                box.result = .failure(error)
+            } else {
+                box.result = .success(((response as? HTTPURLResponse)?.statusCode ?? 0, data ?? Data()))
             }
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard status == 200, let data else {
-                box.result = .failure(SwiftCIError("HTTP \(status)"))
-                return
-            }
-            box.result = .success(data)
         }
         task.resume()
         done.wait()
-        return box.result
+        return try box.result.get()
     }
 }
 

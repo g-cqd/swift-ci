@@ -93,6 +93,7 @@ jobs:
       has-linux: ${{ steps.plan.outputs.has-linux }}
       has-macos: ${{ steps.plan.outputs.has-macos }}
       publish: ${{ steps.plan.outputs.publish }}
+      advisories: ${{ steps.plan.outputs.advisories }}
       scope: ${{ steps.scope.outputs.scope }}
     steps:
       # Credentials kept (read-only token): the CLI fetches the commit a change is compared with, in a private
@@ -324,6 +325,35 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  advisories:
+    needs: plan
+    if: ${{ needs.plan.outputs.advisories == 'true' }}
+    name: Security · Advisories
+    # Every pinned version against the published advisories (its repository's and GitHub's database). Light: no build of
+    # the project, on the plan's runner. The token only raises GitHub's rate limit; the requests need no permission.
+    runs-on: ${{ fromJSON(inputs.plan-runner) }}
+    container: ${{ inputs.plan-image }}
+    timeout-minutes: 15
+    steps:
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Setup · Check Out Swift CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .build/swift-ci-src
+          persist-credentials: false
+      - name: Security · Advisories
+        uses: ./.build/swift-ci-src
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          arguments: advisories
+          config: ${{ inputs.config }}
+          working-directory: ${{ inputs.package-path }}
+
   publish:
     name: Release
     needs: [plan, linux, macos]
@@ -369,7 +399,7 @@ jobs:
     name: Gate
     # The one check a branch rule requires. Skipped jobs pass (nothing to check, or not a tag); failed or cancelled
     # ones do not. An advisory leg continues on error, so its failure does not reach here.
-    needs: [plan, linux, macos, publish]
+    needs: [plan, linux, macos, advisories, publish]
     if: ${{ always() }}
     runs-on: ${{ fromJSON(inputs.plan-runner) }}
     timeout-minutes: 2

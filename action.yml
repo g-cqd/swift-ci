@@ -15,7 +15,7 @@ branding:
 #
 #   - id: plan
 #     uses: g-cqd/swift-ci@<commit>
-#     with: { command: plan }                 # outputs: linux, macos (JSON matrices), publish, skipped
+#     with: { command: plan }                 # outputs: linux, macos (JSON matrices), publish, skipped, advisories
 #
 # The CLI is built from this action's own source (the pinned commit), cached per source, OS and architecture. It
 # needs a Swift toolchain on the runner: a Swift image on Linux, Xcode's or one installed by setup-swift on macOS.
@@ -60,6 +60,9 @@ outputs:
   skipped:
     description: plan — why nothing runs, when nothing does.
     value: ${{ steps.swift-ci.outputs.skipped }}
+  advisories:
+    description: plan — whether the run looks the pinned dependencies up in the published advisories.
+    value: ${{ steps.swift-ci.outputs.advisories }}
 
 runs:
   using: composite

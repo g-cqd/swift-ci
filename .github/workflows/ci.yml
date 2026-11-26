@@ -60,10 +60,13 @@ jobs:
           LINUX: ${{ steps.plan.outputs.linux }}
           HAS_MACOS: ${{ steps.plan.outputs.has-macos }}
           SKIPPED: ${{ steps.plan.outputs.skipped }}
+          ADVISORIES: ${{ steps.plan.outputs.advisories }}
         run: |
           echo "linux: $LINUX"
-          echo "has-macos: $HAS_MACOS, skipped: '$SKIPPED'"
+          echo "has-macos: $HAS_MACOS, skipped: '$SKIPPED', advisories: '$ADVISORIES'"
           case "$LINUX" in \[*\]) ;; *) echo "linux is not a JSON list" >&2; exit 1 ;; esac
+          # Every trigger looks advisories up: an output the action does not declare would read empty.
+          [ "$ADVISORIES" = true ] || { echo "advisories is not an output of the action" >&2; exit 1; }
       - uses: ./
         with: { command: steps, arguments: macos-debug }
       - name: Linux archive runs without the installed Swift runtime

@@ -228,6 +228,12 @@ func main() throws {
                 tag: arguments.options["--tag"] ?? GitHubContext.current.tag,
                 dryRun: dryRun || command == "steps"
             )
+            // In Actions, a build restored from the cache sees unchanged sources with the times they were built with
+            // (`SourceTimes`), so only what changed compiles again; the times are kept for the next run's cache.
+            let keepsTimes =
+                command == "run" && !dryRun && ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
+            if keepsTimes { print("swift-ci: \(SourceTimes.restore(root: root)) sources kept their built times") }
+            defer { if keepsTimes { SourceTimes.save(root: root) } }
             try executor.run(steps, keepGoing: id == CheckID.quality)
         case "local":
             let (configuration, project, lock) = try context()

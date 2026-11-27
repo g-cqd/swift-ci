@@ -383,6 +383,10 @@ before falling back to the same check/toolchain. Failed builds do not replace th
 last successful tree. This avoids freezing the build tree at the first commit
 that used a given manifest.
 
+A checkout gives every file a new time, which would make a restored build compile everything again. `swift-ci run`
+keeps, inside `.build`, the time of each tracked file by the git object of its content (`.build/swift-ci/source-times.tsv`),
+and after the next checkout gives the unchanged files their time back: only what changed compiles again.
+
 For independently reproduced Linux dependency/runtime leaks,
 `swift.linuxLeakSuppressions` accepts additional stack **symbols**, not wildcards
 or suppression-file syntax. Keep a standalone reproduction and removal condition

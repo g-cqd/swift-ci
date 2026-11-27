@@ -56,6 +56,18 @@ jobs:
         with: { arguments: "${{ matrix.id }}" }   # swift-ci run <check>
 ```
 
+### Installing a Swift toolchain
+
+`setup-swift` installs a Swift toolchain with swiftly on macOS or Linux. On macOS, `for-xcode: true` also makes it the
+toolchain `xcodebuild` uses (`TOOLCHAINS`), for an Xcode project whose manifest needs a newer Swift than the runner's
+Xcode: Xcode's tools the swift.org toolchain lacks (`ld`, `actool`, `tapi`, …) are linked into it, and the Metal
+toolchain and Xcode's own follow it.
+
+```yaml
+      - uses: g-cqd/swift-ci/setup-swift@<commit>
+        with: { swift-version: 6.4.2, for-xcode: true }
+```
+
 ### From another CI
 
 The CLI is the portable part: `--event` takes a trigger (`push`, `pull-request`, `merge-queue`, `nightly`, `tag`,

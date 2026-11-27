@@ -8,6 +8,14 @@ inputs:
   swift-version:
     description: Swift toolchain version to install and activate (e.g. 6.4.2).
     required: true
+  for-xcode:
+    description: >-
+      macOS: make the installed toolchain the one xcodebuild uses (TOOLCHAINS), for a project whose manifest needs a newer
+      Swift than the runner's Xcode. A swift.org toolchain has no Apple `ld` (SwiftPM's manifest link then fails with
+      "posix_spawn failed"), nor actool, tapi and Xcode's other tools: those it lacks are linked into it. Named alone it
+      hides Xcode's Metal compiler, so the Metal toolchain and Xcode's own follow it in TOOLCHAINS.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -77,3 +85,27 @@ runs:
           fi
         } >> "$GITHUB_PATH"
         "$SWIFTLY_BIN/swift" --version
+    - name: Select Swift ${{ inputs.swift-version }} for xcodebuild
+      if: ${{ inputs.for-xcode == 'true' && runner.os == 'macOS' }}
+      shell: bash
+      env:
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+      run: |
+        set -euo pipefail
+        plist="$(find "$HOME/Library/Developer/Toolchains" -maxdepth 2 -path "*/swift-$SWIFT_VERSION*.xctoolchain/Info.plist" | head -1)"
+        if [ -z "$plist" ]; then
+          echo "::error::no installed toolchain for Swift $SWIFT_VERSION under ~/Library/Developer/Toolchains"
+          exit 1
+        fi
+        swift_bin="$(dirname "$plist")/usr/bin"
+        xcode_bin="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+        for tool in "$xcode_bin"/*; do
+          name="$(basename "$tool")"
+          [ "$name" = metal ] || [ -e "$swift_bin/$name" ] || ln -s "$tool" "$swift_bin/$name"
+        done
+        xcrun -f metal > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+        metal_info="$(dirname "$(dirname "$(dirname "$(xcrun -f metal)")")")/ToolchainInfo.plist"
+        metal_id="$(plutil -extract Identifier raw "$metal_info" 2> /dev/null || true)"
+        toolchains="$(plutil -extract CFBundleIdentifier raw "$plist") ${metal_id:+$metal_id }com.apple.dt.toolchain.XcodeDefault"
+        echo "TOOLCHAINS=$toolchains" >> "$GITHUB_ENV"
+        echo "xcodebuild uses: $toolchains"
